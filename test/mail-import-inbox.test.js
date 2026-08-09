@@ -75,9 +75,14 @@ test('public inbox is three-column, cursor-paged, and hides commercial account s
 
   assert.match(html, /class="public-inbox-workspace/);
   assert.match(html, /class="public-inbox-nav"/);
+  assert.match(html, /单邮箱收件箱/);
+  assert.match(styles, /Full-screen public workbench/);
+  assert.match(styles, /\.public-inbox-nav \{ grid-column: 1 \/ -1; grid-row: 1;/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
-  assert.match(styles, /grid-template-columns: 210px minmax\(350px, 430px\) minmax\(460px, 1fr\)/);
+  assert.match(styles, /\.public-inbox-workspace \{ width: 100%; height: calc\(100vh - 76px\)/);
+  assert.match(styles, /\.public-message-pane \{ grid-column: 1; grid-row: 2;/);
+  assert.match(styles, /\.public-message-detail \{ grid-column: 2; grid-row: 2;/);
   assert.match(publicQuery, /new IntersectionObserver/);
   assert.match(publicQuery, /cursor: reset \? null : mailState\.cursor/);
   assert.match(publicQuery, /request\('\/api\/query\/message'/);

@@ -44,6 +44,7 @@ const clearBatchInboxSearchButton = document.querySelector('#clear-batch-inbox-s
 const refreshBatchInboxButton = document.querySelector('#refresh-batch-inbox');
 const expandBatchInboxButton = document.querySelector('#expand-batch-inbox');
 const collapseBatchInboxButton = document.querySelector('#collapse-batch-inbox');
+const reimportBatchInboxButton = document.querySelector('#reimport-batch-inbox');
 const batchInboxStatus = document.querySelector('#batch-inbox-status');
 const batchInboxGroups = document.querySelector('#batch-inbox-groups');
 const batchInboxDetail = document.querySelector('#batch-inbox-detail');
@@ -510,6 +511,7 @@ async function loadBatchInbox({ preserveExpanded = true } = {}) {
     }
     batchInboxState.initialized = true;
     batchInboxResultBox.classList.remove('hidden');
+    batchInboxForm.classList.add('hidden');
     renderBatchInbox();
   } catch (error) {
     batchInboxStatus.textContent = '';
@@ -664,7 +666,7 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
     }
     const changed = mailState.filter !== filter;
     mailState.filter = filter;
-    mailListTitle.textContent = filter === 'code' ? '验证码邮件' : '全部邮件';
+    mailListTitle.textContent = filter === 'code' ? '验证码邮件' : '单邮箱收件箱';
     setPublicView('mail');
     if (changed) {
       try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
@@ -817,6 +819,21 @@ collapseBatchInboxButton.addEventListener('click', () => {
 });
 batchInboxDetail.addEventListener('click', (event) => {
   if (event.target === batchInboxDetail) batchInboxDetail.close();
+});
+
+reimportBatchInboxButton.addEventListener('click', () => {
+  activeBatchInboxTokens = [];
+  clearTimeout(batchInboxSearchTimer);
+  batchInboxState = { results: [], keyword: '', expanded: new Set(), initialized: false };
+  batchInboxSearchInput.value = '';
+  clearBatchInboxSearchButton.classList.add('hidden');
+  batchInboxResultBox.classList.add('hidden');
+  batchInboxErrorBox.textContent = '';
+  batchInboxStatus.textContent = '';
+  batchInboxForm.classList.remove('hidden');
+  batchInboxTokensInput.value = '';
+  batchInboxCount.textContent = '0';
+  batchInboxTokensInput.focus();
 });
 
 totpQrUploadButton.addEventListener('click', () => totpQrFileInput.click());

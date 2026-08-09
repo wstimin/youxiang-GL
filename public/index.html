@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-15">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260810-16">
 </head>
 <body class="public-shell">
   <header class="public-head">
@@ -22,11 +22,11 @@
             <div><strong>安全收件箱</strong><small>只读邮件中心</small></div>
           </div>
           <div class="access-nav-label">邮件</div>
-          <button class="access-nav-preview active" type="button" data-access-view="mail" data-mail-filter="all"><i data-lucide="inbox"></i><span>全部邮件</span></button>
+          <button class="access-nav-preview active" type="button" data-access-view="mail" data-mail-filter="all"><i data-lucide="inbox"></i><span>单邮箱收件箱</span></button>
+          <button class="access-nav-preview" type="button" data-access-view="batch-inbox"><i data-lucide="mails"></i><span>批量收件箱</span></button>
           <button class="access-nav-preview" type="button" data-access-view="mail" data-mail-filter="code"><i data-lucide="badge-check"></i><span>验证码邮件</span></button>
           <div class="access-nav-label">工具</div>
           <button class="access-nav-preview" type="button" data-access-view="batch"><i data-lucide="list-checks"></i><span>批量查码</span></button>
-          <button class="access-nav-preview" type="button" data-access-view="batch-inbox"><i data-lucide="mails"></i><span>批量收件箱</span></button>
           <button class="access-nav-preview" type="button" data-access-view="totp"><i data-lucide="fingerprint"></i><span>2FA 工具</span></button>
           <div class="access-navigation-foot"><i data-lucide="shield-check"></i><span>安全只读模式</span></div>
         </aside>
@@ -78,10 +78,10 @@
         </div>
 
         <nav class="public-nav" aria-label="功能导航">
-          <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span class="public-nav-label">全部邮件</span><span id="mail-total-count" class="public-nav-count">0</span></button>
+          <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span class="public-nav-label">单邮箱收件箱</span><span id="mail-total-count" class="public-nav-count">0</span></button>
+          <button type="button" data-public-view="batch-inbox"><i data-lucide="mails" class="icon"></i><span class="public-nav-label">批量收件箱</span></button>
           <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span class="public-nav-label">验证码邮件</span><span id="mail-code-count" class="public-nav-count">0</span></button>
           <button type="button" data-public-view="batch"><i data-lucide="list-checks" class="icon"></i><span class="public-nav-label">批量查码</span></button>
-          <button type="button" data-public-view="batch-inbox"><i data-lucide="mails" class="icon"></i><span class="public-nav-label">批量收件箱</span></button>
           <button type="button" data-public-view="totp"><i data-lucide="fingerprint" class="icon"></i><span class="public-nav-label">2FA 工具</span></button>
         </nav>
 
@@ -96,7 +96,7 @@
 
       <section id="mail-list-pane" class="public-message-pane">
         <header class="public-pane-head">
-          <div class="public-pane-title"><span class="pane-kicker">INBOX</span><h1 id="mail-list-title">全部邮件</h1><small id="mail-last-refresh">尚未更新</small></div>
+          <div class="public-pane-title"><span class="pane-kicker">SINGLE MAILBOX</span><h1 id="mail-list-title">单邮箱收件箱</h1><small id="mail-last-refresh">尚未更新</small></div>
           <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
         </header>
         <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新邮件，点击查看</span></button>
@@ -150,6 +150,7 @@
               <button id="refresh-batch-inbox" class="btn btn-secondary btn-icon" type="button" title="刷新全部邮箱" aria-label="刷新全部邮箱"><i data-lucide="refresh-cw" class="icon"></i></button>
               <button id="expand-batch-inbox" class="btn btn-secondary" type="button"><i data-lucide="chevrons-down" class="icon"></i><span>全部展开</span></button>
               <button id="collapse-batch-inbox" class="btn btn-secondary" type="button"><i data-lucide="chevrons-up" class="icon"></i><span>全部折叠</span></button>
+              <button id="reimport-batch-inbox" class="btn btn-secondary" type="button"><i data-lucide="key-round" class="icon"></i><span>重新导入</span></button>
             </div>
           </div>
           <p id="batch-inbox-status" class="public-list-status" role="status"></p>
@@ -186,6 +187,6 @@
   <footer class="public-foot">邮件仅保留 7 天，不加载远程图片，不提供发送、删除或其他远端写操作。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260809-15"></script>
+  <script src="/assets/query.js?v=20260810-16"></script>
 </body>
 </html>
