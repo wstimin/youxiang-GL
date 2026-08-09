@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理中心 · Cyber Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06060c;
+      --sidebar: #0b0b14;
+      --card: rgba(18, 18, 28, 0.85);
+      --border: rgba(255,255,255,0.07);
+      --cyan: #22d3ee;
+      --purple: #a855f7;
+      --pink: #ec4899;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --danger: #f87171;
+      --hover: rgba(255,255,255,0.04);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      overflow-x: hidden;
+    }
+
+    /* ========== 侧边栏 ========== */
+    .sidebar {
+      width: 240px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      z-index: 50;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 24px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #22d3ee, #a855f7);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .nav {
+      flex: 1;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      background: var(--hover);
+      color: var(--text);
+    }
+
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(168, 85, 247, 0.12));
+      color: var(--cyan);
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.08);
+    }
+
+    .nav-item svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid rgba(248, 113, 113, 0.15);
+      color: #f87171;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: rgba(248, 113, 113, 0.15);
+    }
+
+    /* ========== 主内容区 ========== */
+    .main {
+      flex: 1;
+      margin-left: 240px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      height: 64px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      background: rgba(6, 6, 12, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+
+    .page-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .user-email {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .content {
+      padding: 28px 32px 48px;
+      flex: 1;
+    }
+
+    /* ========== 通用组件 ========== */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .section-header h2 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .section-header p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #22d3ee, #a855f7);
+      color: #0a0a0f;
+      box-shadow: 0 4px 16px rgba(34, 211, 238, 0.25);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(34, 211, 238, 0.35);
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.07);
+    }
+
+    .btn-danger {
+      background: rgba(248, 113, 113, 0.12);
+      border: 1px solid rgba(248, 113, 113, 0.25);
+      color: #f87171;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    /* 统计卡片 */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 1100px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      opacity: 0.6;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    /* 卡片 */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-header h3 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .card-body {
+      padding: 0;
+    }
+
+    /* 表格 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 14px 20px;
+      font-size: 13.5px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    tr:hover td {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .empty-state {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--success);
+    }
+
+    .badge-warning {
+      background: rgba(251, 191, 36, 0.12);
+      color: var(--warning);
+    }
+
+    .badge-danger {
+      background: rgba(248, 113, 113, 0.12);
+      color: var(--danger);
+    }
+
+    .badge-info {
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--cyan);
+    }
+
+    /* 页面切换 */
+    .page { display: none; }
+    .page.active { display: block; animation: fadeIn 0.3s ease; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ========== 弹窗 ========== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal {
+      background: #0f0f1a;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+      animation: modalIn 0.3s ease;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 7px;
+      font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      height: 44px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 14px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-group textarea {
+      height: 90px;
+      padding: 12px 14px;
+      resize: vertical;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: rgba(34, 211, 238, 0.5);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    /* 工具栏 */
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      height: 40px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 14px 0 38px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .search-box::before {
+      content: '🔍';
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">🛡</div>
+      <div class="logo-text">管理中心</div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-page="overview">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        概览
+      </button>
+      <button class="nav-item" data-page="parent">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        母邮箱
+      </button>
+      <button class="nav-item" data-page="child">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/></svg>
+        子邮箱
+      </button>
+      <button class="nav-item" data-page="records">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        收信记录
+      </button>
+      <button class="nav-item" data-page="security">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        安全
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="alert('已退出登录')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        退出登录
+      </button>
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <div class="main">
+    <header class="topbar">
+      <div class="page-title" id="topTitle">概览</div>
+      <div class="topbar-right">
+        <div class="user-email">👤 425619550@qq.com</div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ========== 1. 概览页 ========== -->
+      <div class="page active" id="page-overview">
+        <div class="section-header">
+          <div>
+            <h2>运行概览</h2>
+            <p>邮箱同步、验证码归类与查询访问状态</p>
+          </div>
+          <button class="btn btn-ghost" onclick="location.reload()">🔄 刷新</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">📧 在线母邮箱</div>
+            <div class="stat-value">1/1</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">@ 启用子邮箱</div>
+            <div class="stat-value">1</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">🔑 今日验证码</div>
+            <div class="stat-value">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">📩 未匹配邮件</div>
+            <div class="stat-value">22</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>最近验证码</h3>
+          </div>
+          <div class="empty-state">暂无记录</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>最近审计</h3>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead>
+                <tr>
+                  <th>操作者</th>
+                  <th>动作</th>
+                  <th>目标</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:48:18</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:47:46</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:38:46</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:38:34</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:34:55</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:34:31</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:34:29</td></tr>
+                <tr><td>alias:1</td><td><span class="badge badge-success">query_success</span></td><td>1</td><td>2026/8/9 03:33:57</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 2. 母邮箱页 ========== -->
+      <div class="page" id="page-parent">
+        <div class="section-header">
+          <div>
+            <h2>母邮箱管理</h2>
+            <p>管理用于接收验证码的主邮箱账号</p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-parent')">＋ 添加母邮箱</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="搜索邮箱地址..." />
+          </div>
+          <button class="btn btn-ghost">筛选</button>
+        </div>
+
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>邮箱地址</th>
+                <th>状态</th>
+                <th>子邮箱数</th>
+                <th>最后同步</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>master@example.com</td>
+                <td><span class="badge badge-success">在线</span></td>
+                <td>1</td>
+                <td>2026/8/9 03:45:12</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" onclick="openModal('modal-parent-edit')">编辑</button>
+                  <button class="btn btn-danger btn-sm" onclick="openModal('modal-confirm-delete')">删除</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 3. 子邮箱页 ========== -->
+      <div class="page" id="page-child">
+        <div class="section-header">
+          <div>
+            <h2>子邮箱管理</h2>
+            <p>管理别名邮箱，用于精准匹配验证码</p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-child')">＋ 添加子邮箱</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="搜索子邮箱或备注..." />
+          </div>
+        </div>
+
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>子邮箱</th>
+                <th>所属母邮箱</th>
+                <th>备注</th>
+                <th>状态</th>
+                <th>今日验证码</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>alias1@example.com</td>
+                <td>master@example.com</td>
+                <td>ChatGPT 账号</td>
+                <td><span class="badge badge-success">启用</span></td>
+                <td>0</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" onclick="openModal('modal-child-edit')">编辑</button>
+                  <button class="btn btn-danger btn-sm" onclick="openModal('modal-confirm-delete')">停用</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 4. 收信记录页 ========== -->
+      <div class="page" id="page-records">
+        <div class="section-header">
+          <div>
+            <h2>收信记录</h2>
+            <p>所有接收到的邮件及提取的验证码</p>
+          </div>
+          <button class="btn btn-ghost">导出</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="搜索发件人、主题或验证码..." />
+          </div>
+          <button class="btn btn-ghost">今日</button>
+          <button class="btn btn-ghost">未匹配</button>
+        </div>
+
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>发件人</th>
+                <th>主题</th>
+                <th>匹配子邮箱</th>
+                <th>验证码</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>2026/8/9 03:12</td>
+                <td>noreply@openai.com</td>
+                <td>Your verification code</td>
+                <td>—</td>
+                <td><code style="color:var(--cyan)">847291</code></td>
+                <td><span class="badge badge-warning">未匹配</span></td>
+                <td><button class="btn btn-ghost btn-sm" onclick="openModal('modal-mail-detail')">查看</button></td>
+              </tr>
+              <tr>
+                <td>2026/8/9 02:48</td>
+                <td>security@google.com</td>
+                <td>Gmail 验证码</td>
+                <td>alias1@example.com</td>
+                <td><code style="color:var(--cyan)">392847</code></td>
+                <td><span class="badge badge-success">已匹配</span></td>
+                <td><button class="btn btn-ghost btn-sm" onclick="openModal('modal-mail-detail')">查看</button></td>
+              </tr>
+              <tr>
+                <td>2026/8/8 23:15</td>
+                <td>no-reply@apple.com</td>
+                <td>Apple ID 验证码</td>
+                <td>—</td>
+                <td><code style="color:var(--cyan)">105638</code></td>
+                <td><span class="badge badge-warning">未匹配</span></td>
+                <td><button class="btn btn-ghost btn-sm" onclick="openModal('modal-mail-detail')">查看</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 5. 安全页 ========== -->
+      <div class="page" id="page-security">
+        <div class="section-header">
+          <div>
+            <h2>安全设置</h2>
+            <p>账户安全、双重认证与访问控制</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <h3>登录密码</h3>
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-password')">修改密码</button>
+          </div>
+          <div style="padding:20px; color:var(--muted); font-size:14px;">
+            上次修改时间：2026/7/15 14:22
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <h3>双重认证（2FA）</h3>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-2fa')">绑定 / 管理</button>
+          </div>
+          <div style="padding:20px; display:flex; align-items:center; gap:12px;">
+            <span class="badge badge-danger">未启用</span>
+            <span style="color:var(--muted); font-size:14px;">建议开启以提升账户安全性</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>API 访问密钥</h3>
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-api-key')">生成新密钥</button>
+          </div>
+          <div class="empty-state" style="padding:32px;">暂无 API 密钥</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗们 ==================== -->
+
+  <!-- 添加母邮箱 -->
+  <div class="modal-overlay" id="modal-parent">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加母邮箱</h3>
+        <button class="modal-close" onclick="closeModal('modal-parent')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>邮箱地址</label>
+          <input type="email" placeholder="例如：master@example.com" />
+        </div>
+        <div class="form-group">
+          <label>密码 / 授权码</label>
+          <input type="password" placeholder="输入邮箱密码或应用专用密码" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>IMAP 服务器</label>
+            <input type="text" placeholder="imap.example.com" />
+          </div>
+          <div class="form-group">
+            <label>端口</label>
+            <input type="number" placeholder="993" value="993" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <input type="text" placeholder="可选" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-parent')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-parent')">确认添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑母邮箱 -->
+  <div class="modal-overlay" id="modal-parent-edit">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>编辑母邮箱</h3>
+        <button class="modal-close" onclick="closeModal('modal-parent-edit')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>邮箱地址</label>
+          <input type="email" value="master@example.com" />
+        </div>
+        <div class="form-group">
+          <label>密码 / 授权码</label>
+          <input type="password" placeholder="留空则不修改" />
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select>
+            <option>启用</option>
+            <option>停用</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-parent-edit')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-parent-edit')">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加子邮箱 -->
+  <div class="modal-overlay" id="modal-child">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加子邮箱</h3>
+        <button class="modal-close" onclick="closeModal('modal-child')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>子邮箱地址</label>
+          <input type="email" placeholder="例如：alias@example.com" />
+        </div>
+        <div class="form-group">
+          <label>所属母邮箱</label>
+          <select>
+            <option>master@example.com</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <input type="text" placeholder="例如：ChatGPT 专用" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-child')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-child')">确认添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑子邮箱 -->
+  <div class="modal-overlay" id="modal-child-edit">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>编辑子邮箱</h3>
+        <button class="modal-close" onclick="closeModal('modal-child-edit')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>子邮箱地址</label>
+          <input type="email" value="alias1@example.com" />
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <input type="text" value="ChatGPT 账号" />
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select>
+            <option selected>启用</option>
+            <option>停用</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-child-edit')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-child-edit')">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 删除确认 -->
+  <div class="modal-overlay" id="modal-confirm-delete">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header">
+        <h3>确认删除</h3>
+        <button class="modal-close" onclick="closeModal('modal-confirm-delete')">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+          此操作不可恢复，确定要删除该邮箱吗？相关收信记录将保留。
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-confirm-delete')">取消</button>
+        <button class="btn btn-danger" onclick="closeModal('modal-confirm-delete')">确认删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 邮件详情 -->
+  <div class="modal-overlay" id="modal-mail-detail">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h3>邮件详情</h3>
+        <button class="modal-close" onclick="closeModal('modal-mail-detail')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>发件人</label>
+          <input type="text" value="noreply@openai.com" readonly />
+        </div>
+        <div class="form-group">
+          <label>主题</label>
+          <input type="text" value="Your verification code" readonly />
+        </div>
+        <div class="form-group">
+          <label>提取的验证码</label>
+          <input type="text" value="847291" readonly style="color:var(--cyan); font-family:monospace; font-size:18px; letter-spacing:2px;" />
+        </div>
+        <div class="form-group">
+          <label>原始内容预览</label>
+          <textarea readonly>Your OpenAI verification code is 847291. It will expire in 10 minutes.</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-mail-detail')">关闭</button>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText('847291'); alert('验证码已复制')">复制验证码</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密码 -->
+  <div class="modal-overlay" id="modal-password">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>修改登录密码</h3>
+        <button class="modal-close" onclick="closeModal('modal-password')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>当前密码</label>
+          <input type="password" />
+        </div>
+        <div class="form-group">
+          <label>新密码</label>
+          <input type="password" />
+        </div>
+        <div class="form-group">
+          <label>确认新密码</label>
+          <input type="password" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-password')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-password')">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2FA 绑定 -->
+  <div class="modal-overlay" id="modal-2fa">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>绑定双重认证</h3>
+        <button class="modal-close" onclick="closeModal('modal-2fa')">×</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <div style="width:160px; height:160px; background:#fff; border-radius:12px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center;">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=otpauth://totp/Admin:425619550@qq.com?secret=JBSWY3DPEHPK3PXP&issuer=Admin" alt="QR" style="width:140px; height:140px;" />
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">使用 Google Authenticator 扫描二维码</p>
+        <div class="form-group">
+          <label>密钥（手动输入）</label>
+          <input type="text" value="JBSWY3DPEHPK3PXP" readonly style="text-align:center; letter-spacing:1px; font-family:monospace;" />
+        </div>
+        <div class="form-group">
+          <label>输入认证器中的 6 位验证码</label>
+          <input type="text" placeholder="000000" maxlength="6" style="text-align:center; letter-spacing:4px; font-size:18px;" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-2fa')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-2fa')">确认绑定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 生成 API 密钥 -->
+  <div class="modal-overlay" id="modal-api-key">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>生成 API 密钥</h3>
+        <button class="modal-close" onclick="closeModal('modal-api-key')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>密钥名称</label>
+          <input type="text" placeholder="例如：生产环境" />
+        </div>
+        <div class="form-group">
+          <label>权限</label>
+          <select>
+            <option>只读</option>
+            <option>读写</option>
+          </select>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin-top:8px;">密钥仅显示一次，请妥善保存。</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-api-key')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-api-key')">生成密钥</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 页面切换
+    document.querySelectorAll('.nav-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const page = btn.dataset.page;
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-' + page).classList.add('active');
+
+        const titles = {
+          overview: '概览',
+          parent: '母邮箱',
+          child: '子邮箱',
+          records: '收信记录',
+          security: '安全'
+        };
+        document.getElementById('topTitle').textContent = titles[page];
+      });
+    });
+
+    // 弹窗控制
+    function openModal(id) {
+      document.getElementById(id).classList.add('show');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    // 点击遮罩关闭
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) overlay.classList.remove('show');
+      });
+    });
+  </script>
+</body>
+</html>
