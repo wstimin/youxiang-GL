@@ -5,32 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260810-17">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260810-18">
 </head>
 <body class="public-shell">
-  <header class="public-head">
-    <div class="brand"><span class="brand-mark"><i data-lucide="mail-check"></i></span><span>邮件中心</span></div>
-    <span class="secure-status"><span></span>只读安全访问</span>
-  </header>
-
   <main class="public-main">
     <section id="access-view" class="access-view" aria-labelledby="access-title">
-      <div class="access-workspace">
-        <aside class="access-navigation" aria-label="邮件中心功能预览">
-          <div class="access-product">
-            <span class="access-product-mark"><i data-lucide="mail-check"></i></span>
-            <div><strong>安全收件箱</strong><small>只读邮件中心</small></div>
-          </div>
-          <div class="access-nav-label">邮件</div>
+      <header class="access-app-bar">
+        <div class="access-brand"><span class="access-product-mark"><i data-lucide="mail-check"></i></span><div><strong>安全收件箱</strong><small>只读邮件中心</small></div></div>
+        <nav class="access-navigation" aria-label="邮件中心功能预览">
           <button class="access-nav-preview active" type="button" data-access-view="mail" data-mail-filter="all"><i data-lucide="inbox"></i><span>单邮箱收件箱</span></button>
           <button class="access-nav-preview" type="button" data-access-view="batch-inbox"><i data-lucide="mails"></i><span>批量收件箱</span></button>
           <button class="access-nav-preview" type="button" data-access-view="mail" data-mail-filter="code"><i data-lucide="badge-check"></i><span>验证码邮件</span></button>
-          <div class="access-nav-label">工具</div>
           <button class="access-nav-preview" type="button" data-access-view="batch"><i data-lucide="list-checks"></i><span>批量查码</span></button>
           <button class="access-nav-preview" type="button" data-access-view="totp"><i data-lucide="fingerprint"></i><span>2FA 工具</span></button>
-          <div class="access-navigation-foot"><i data-lucide="shield-check"></i><span>安全只读模式</span></div>
-        </aside>
+        </nav>
+        <div class="access-navigation-foot"><i data-lucide="shield-check"></i><span>安全只读模式</span></div>
+      </header>
 
+      <div class="access-content">
         <section class="access-mail-preview" aria-hidden="true">
           <header class="access-preview-head">
             <div><span class="pane-kicker">INBOX</span><strong>最近邮件</strong></div>
@@ -46,7 +38,7 @@
         </section>
 
         <div class="access-entry">
-          <div class="access-panel">
+          <div class="access-entry-inner">
             <div class="access-title-row">
               <span class="access-icon"><i data-lucide="key-round"></i></span>
               <div><span class="eyebrow">SECURE ACCESS</span><h1 id="access-title">验证访问密钥</h1></div>
@@ -186,9 +178,8 @@
     </section>
   </main>
 
-  <footer class="public-foot">邮件仅保留 7 天，不加载远程图片，不提供发送、删除或其他远端写操作。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260810-17"></script>
+  <script src="/assets/query.js?v=20260810-18"></script>
 </body>
 </html>
