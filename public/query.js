@@ -1,14 +1,29 @@
 'use strict';
 
+const accessView = document.querySelector('#access-view');
+const inboxWorkspace = document.querySelector('#inbox-workspace');
 const mailForm = document.querySelector('#mail-query-form');
 const mailTokenInput = document.querySelector('#mail-token');
 const mailErrorBox = document.querySelector('#mail-query-error');
-const mailResultBox = document.querySelector('#mail-result');
+const mailListPane = document.querySelector('#mail-list-pane');
+const mailListTitle = document.querySelector('#mail-list-title');
+const mailSearchInput = document.querySelector('#mail-search');
+const clearMailSearchButton = document.querySelector('#clear-mail-search');
+const mailListStatus = document.querySelector('#mail-list-status');
+const mailMessageList = document.querySelector('#mail-message-list');
+const mailListEmpty = document.querySelector('#mail-list-empty');
+const mailLoadMoreButton = document.querySelector('#mail-load-more');
+const mailLoadSentinel = document.querySelector('#mail-load-sentinel');
+const mailDetail = document.querySelector('#mail-detail');
+const refreshMailButton = document.querySelector('#refresh-mail');
+const changeKeyButton = document.querySelector('#change-key');
+const batchView = document.querySelector('#batch-view');
 const mailBatchForm = document.querySelector('#mail-batch-form');
 const mailBatchTokensInput = document.querySelector('#mail-batch-tokens');
 const mailBatchCount = document.querySelector('#mail-batch-count');
 const mailBatchErrorBox = document.querySelector('#mail-batch-error');
 const mailBatchResultBox = document.querySelector('#mail-batch-result');
+const totpView = document.querySelector('#totp-view');
 const totpForm = document.querySelector('#totp-query-form');
 const totpSecretInput = document.querySelector('#totp-secret');
 const totpQrFileInput = document.querySelector('#totp-qr-file');
@@ -16,17 +31,30 @@ const totpQrUploadButton = document.querySelector('#totp-qr-upload');
 const totpErrorBox = document.querySelector('#totp-query-error');
 const totpResultBox = document.querySelector('#totp-result');
 const toast = document.querySelector('#toast');
+
 const activeTotps = new Map();
+const mailState = {
+  token: '',
+  filter: 'all',
+  keyword: '',
+  cursor: null,
+  loading: false,
+  selectedId: null,
+  requestId: 0
+};
+let mailSearchTimer;
 let mailBatchRefreshTimer;
 let activeMailBatchTokens = [];
 let mailBatchRefreshInFlight = false;
-let activeMailToken = '';
-let activeMailPage = 1;
 let totpCountdownTimer;
 let totpRefreshInFlight = false;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+}
+
+function renderIcons() {
+  if (globalThis.lucide?.createIcons) globalThis.lucide.createIcons();
 }
 
 function showToast(message) {
@@ -52,106 +80,141 @@ async function request(url, body) {
   return data;
 }
 
-function renderAliasMeta(data) {
-  const detail = data.mode === 'code'
-    ? '最新有效验证码'
-    : `${data.pagination.total} 封邮件`;
-  return `<div class="result-meta"><strong>${escapeHtml(data.label || '邮箱')}</strong><span>${escapeHtml(data.alias)} · ${detail}</span></div>`;
-}
-
-function formatMailDate(value) {
+function formatMailDate(value, detailed = false) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', { hour12: false });
+  if (Number.isNaN(date.getTime())) return '';
+  const today = new Date();
+  const sameDay = date.toDateString() === today.toDateString();
+  if (!detailed && sameDay) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return date.toLocaleString('zh-CN', detailed
+    ? { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }
+    : { month: '2-digit', day: '2-digit' });
 }
 
-function mailCodeMarkup(message) {
-  if (!message.code) return '<span class="mail-code-state">无验证码</span>';
-  return `<span class="mail-code"><span>${escapeHtml(message.code)}</span><button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button></span>`;
-}
-
-function renderMailCode(data) {
-  const message = data.message;
-  return `${renderAliasMeta(data)}<section class="code-section mail-code-section">
-    <header class="code-section-head"><h2>最新有效验证码</h2></header>
-    ${message ? `<div class="code-line"><strong class="code-value">${escapeHtml(message.code)}</strong><button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button></div>
-      <div class="result-detail"><span>发件人：${escapeHtml(message.sender || '未知发件人')}</span><span>主题：${escapeHtml(message.subject || '无主题')}</span><span>收到时间：${escapeHtml(formatMailDate(message.receivedAt))}</span></div>`
-      : '<p class="muted result-empty">暂时没有有效验证码，请稍后刷新。</p>'}
-  </section>`;
-}
-
-function renderMailText(data) {
-  return `${renderAliasMeta(data)}${data.messages.length ? `
-    <div class="mail-list">${data.messages.map((message) => `
-      <article class="mail-item" data-mail-id="${message.id}">
-        <header class="mail-item-head">
-          <div class="mail-item-title"><strong>${escapeHtml(message.subject || '无主题')}</strong><span>${escapeHtml(message.sender || '未知发件人')}</span></div>
-          <time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time>
-        </header>
-        <p class="mail-preview">${escapeHtml(message.bodyPreview || '这封历史邮件没有可显示的正文。')}</p>
-        <footer class="mail-item-foot">${mailCodeMarkup(message)}<button class="btn btn-secondary" type="button" data-open-mail="${message.id}"><i data-lucide="mail-open" class="icon"></i><span>查看正文</span></button></footer>
-        <div class="mail-body-panel hidden" data-mail-body="${message.id}"></div>
-      </article>`).join('')}</div>
-    <div class="mail-pagination">
-      <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page - 1}" ${data.pagination.page <= 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="icon"></i><span>上一页</span></button>
-      <span>第 ${data.pagination.page} 页 · 共 ${data.pagination.total} 封</span>
-      <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page + 1}" ${data.pagination.hasMore ? '' : 'disabled'}><span>下一页</span><i data-lucide="chevron-right" class="icon"></i></button>
-    </div>` : '<p class="muted result-empty">该邮箱最近 7 天内没有已归属邮件。</p>'}`;
-}
-
-function renderMail(data) {
-  mailResultBox.classList.remove('hidden');
-  mailResultBox.innerHTML = data.mode === 'code' ? renderMailCode(data) : renderMailText(data);
-  lucide.createIcons();
-  mailResultBox.querySelectorAll('[data-copy-mail-code]').forEach((button) => button.addEventListener('click', () => {
-    const message = data.mode === 'code' ? data.message : data.messages.find((item) => String(item.id) === button.dataset.copyMailCode);
-    if (message?.code) copyCode(message.code, '邮箱验证码已复制');
-  }));
-  if (data.mode === 'code') return;
-  mailResultBox.querySelectorAll('[data-open-mail]').forEach((button) => button.addEventListener('click', () => openMailMessage(button)));
-  mailResultBox.querySelectorAll('[data-mail-page]').forEach((button) => button.addEventListener('click', () => queryMailPage(Number(button.dataset.mailPage))));
-}
-
-async function openMailMessage(button) {
-  const messageId = Number(button.dataset.openMail);
-  const panel = mailResultBox.querySelector(`[data-mail-body="${messageId}"]`);
-  if (!panel) return;
-  if (panel.dataset.loaded === 'true') {
-    panel.classList.toggle('hidden');
-    return;
+function setPublicView(view) {
+  mailListPane.classList.toggle('hidden', view !== 'mail');
+  mailDetail.classList.toggle('hidden', view !== 'mail');
+  batchView.classList.toggle('hidden', view !== 'batch');
+  totpView.classList.toggle('hidden', view !== 'totp');
+  inboxWorkspace.dataset.view = view;
+  document.querySelectorAll('[data-public-view]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.publicView === view && (view !== 'mail' || button.dataset.mailFilter === mailState.filter));
+  });
+  if (view !== 'batch') clearTimeout(mailBatchRefreshTimer);
+  if (view === 'batch' && activeMailBatchTokens.length && mailBatchResultBox.innerHTML) {
+    mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), 15000);
   }
-  button.disabled = true;
+}
+
+function resetMailDetail() {
+  mailState.selectedId = null;
+  mailDetail.classList.remove('mobile-visible');
+  mailDetail.innerHTML = '<div class="public-detail-empty"><i data-lucide="mail-open"></i><strong>选择一封邮件</strong><span>正文将在点击后按需、安全地加载。</span></div>';
+  renderIcons();
+}
+
+function renderMessageItem(message) {
+  const hasCode = Boolean(message.hasCode || message.codeMasked);
+  return `<button class="public-message-item" type="button" data-message-id="${message.id}">
+    <span class="public-message-row"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span>
+    <span class="public-message-subject">${escapeHtml(message.subject || '无主题')}</span>
+    <span class="public-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span>
+    <span class="public-message-foot">${hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>验证码</span>' : '<span>普通邮件</span>'}<i data-lucide="chevron-right"></i></span>
+  </button>`;
+}
+
+function bindMessageItems(messages) {
+  for (const message of messages) {
+    const button = mailMessageList.querySelector(`[data-message-id="${message.id}"]`);
+    if (button) button.addEventListener('click', () => openMailMessage(message, button));
+  }
+}
+
+function updateMailListState(loadedCount) {
+  mailListEmpty.classList.toggle('hidden', mailMessageList.children.length > 0 || mailState.loading);
+  mailLoadMoreButton.classList.toggle('hidden', !mailState.cursor || mailState.loading);
+  if (mailState.loading) mailListStatus.textContent = mailMessageList.children.length ? '正在加载更多邮件...' : '正在加载邮件...';
+  else if (mailMessageList.children.length) mailListStatus.textContent = loadedCount ? `已加载 ${mailMessageList.children.length} 封邮件` : '';
+  else mailListStatus.textContent = '';
+}
+
+async function loadMessages({ reset = false, unlock = false } = {}) {
+  if (!mailState.token || mailState.loading) return false;
+  if (!reset && !mailState.cursor) return false;
+  mailState.loading = true;
+  const requestId = ++mailState.requestId;
+  if (reset) {
+    mailState.cursor = null;
+    mailMessageList.replaceChildren();
+    resetMailDetail();
+  }
+  refreshMailButton.disabled = true;
+  updateMailListState(0);
   try {
-    const data = await request('/api/query/message', { token: activeMailToken, messageId });
-    const body = document.createElement('pre');
-    body.className = 'mail-body';
-    body.textContent = data.message.body || '这封邮件没有可显示的纯文本正文。';
-    panel.replaceChildren(body);
-    panel.dataset.loaded = 'true';
-    panel.classList.remove('hidden');
+    const data = await request('/api/query', {
+      token: mailState.token,
+      cursor: reset ? null : mailState.cursor,
+      limit: 40,
+      keyword: mailState.keyword,
+      status: mailState.filter === 'code' ? 'code' : ''
+    });
+    if (requestId !== mailState.requestId) return false;
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    mailMessageList.insertAdjacentHTML('beforeend', messages.map(renderMessageItem).join(''));
+    bindMessageItems(messages);
+    mailState.cursor = data.nextCursor || null;
+    if (unlock) {
+      accessView.classList.add('hidden');
+      inboxWorkspace.classList.remove('hidden');
+      setPublicView('mail');
+    }
+    renderIcons();
+    return true;
   } catch (error) {
-    panel.textContent = error.message;
-    panel.classList.remove('hidden');
+    if (unlock) mailState.token = '';
+    throw error;
   } finally {
-    button.disabled = false;
+    if (requestId === mailState.requestId) {
+      mailState.loading = false;
+      refreshMailButton.disabled = false;
+      updateMailListState(mailMessageList.children.length);
+    }
   }
 }
 
-async function queryMailPage(page) {
-  if (!activeMailToken || page < 1) return;
-  activeMailPage = page;
-  mailErrorBox.textContent = '';
+async function openMailMessage(message, button) {
+  mailState.selectedId = Number(message.id);
+  mailMessageList.querySelectorAll('.public-message-item').forEach((item) => item.classList.toggle('active', item === button));
+  mailDetail.classList.add('mobile-visible');
+  mailDetail.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
   try {
-    renderMail(await request('/api/query', { token: activeMailToken, page: activeMailPage, pageSize: 20 }));
+    const data = await request('/api/query/message', { token: mailState.token, messageId: Number(message.id) });
+    if (mailState.selectedId !== Number(message.id)) return;
+    const detail = data.message;
+    mailDetail.innerHTML = `<header class="public-detail-head">
+      <button class="public-mobile-back" type="button" title="返回邮件列表" aria-label="返回邮件列表"><i data-lucide="arrow-left"></i></button>
+      <div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div>
+      ${detail.code ? `<button class="btn btn-secondary" type="button" data-copy-detail-code><i data-lucide="copy" class="icon"></i><span>复制验证码</span></button>` : ''}
+    </header>
+    <dl class="public-detail-meta">
+      <div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div>
+      <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div>
+      <div><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div>
+    </dl>
+    <pre class="public-detail-body"></pre>`;
+    mailDetail.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的纯文本正文。';
+    mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => mailDetail.classList.remove('mobile-visible'));
+    const copyButton = mailDetail.querySelector('[data-copy-detail-code]');
+    if (copyButton) copyButton.addEventListener('click', () => copyCode(detail.code, '验证码已复制'));
+    renderIcons();
   } catch (error) {
-    mailErrorBox.textContent = error.message;
+    mailDetail.innerHTML = `<div class="public-detail-empty"><i data-lucide="circle-alert"></i><strong>正文加载失败</strong><span>${escapeHtml(error.message)}</span></div>`;
+    renderIcons();
   }
 }
 
 function parseBatchTokens() {
-  return mailBatchTokensInput.value
-    .split(/\r?\n/)
-    .map((token) => token.trim())
-    .filter(Boolean);
+  return mailBatchTokensInput.value.split(/\r?\n/).map((token) => token.trim()).filter(Boolean);
 }
 
 function mailBatchStatus(item) {
@@ -165,53 +228,36 @@ function renderMailBatch(data) {
   const waiting = data.results.filter((item) => item.status === 'waiting').length;
   const invalid = data.results.filter((item) => item.status === 'invalid').length;
   mailBatchResultBox.classList.remove('hidden');
-  mailBatchResultBox.innerHTML = `
-    <div class="result-meta batch-result-meta"><strong>批量接收邮件</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
-    <div class="batch-result-list">${data.results.map((item) => `
-      <section class="batch-result-row batch-${item.status}">
-        <div class="batch-result-identity">
-          <span class="batch-row-index">${item.index + 1}</span>
-          <div><strong>${escapeHtml(item.label || item.alias || '未识别密钥')}</strong><small>${escapeHtml(item.alias || `第 ${item.index + 1} 个查询密钥`)}</small></div>
-        </div>
-        <div class="batch-result-state">${mailBatchStatus(item)}</div>
-        <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>${escapeHtml(item.message.sender || item.message.subject || '验证码邮件')}</small>` : `<strong>------</strong><small>${item.status === 'invalid' ? '请检查查询密钥' : '等待最新有效验证码'}</small>`}</div>
-        <div class="batch-result-action">${item.message ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-batch-code="${item.index}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
-      </section>`).join('')}</div>
-    <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的验证码</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>`;
+  mailBatchResultBox.innerHTML = `<div class="result-meta batch-result-meta"><strong>查询结果</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
+    <div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
+      <div class="batch-result-identity"><span class="batch-row-index">${item.index + 1}</span><div><strong>查询项 ${item.index + 1}</strong><small>独立查询密钥</small></div></div>
+      <div class="batch-result-state">${mailBatchStatus(item)}</div>
+      <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>${escapeHtml(item.message.sender || item.message.subject || '验证码邮件')}</small>` : `<strong>------</strong><small>${item.status === 'invalid' ? '请检查查询密钥' : '等待最新验证码'}</small>`}</div>
+      <div class="batch-result-action">${item.message ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-batch-code="${item.index}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
+    </section>`).join('')}</div>
+    <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的结果</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>`;
   mailBatchResultBox.querySelectorAll('[data-copy-batch-code]').forEach((button) => button.addEventListener('click', () => {
     const item = data.results[Number(button.dataset.copyBatchCode)];
-    if (item?.message) copyCode(item.message.code, '邮箱验证码已复制');
+    if (item?.message) copyCode(item.message.code, '验证码已复制');
   }));
-  document.querySelector('#refresh-mail-batch').addEventListener('click', () => refreshMailBatch());
-  lucide.createIcons();
+  document.querySelector('#refresh-mail-batch').addEventListener('click', refreshMailBatch);
+  renderIcons();
   clearTimeout(mailBatchRefreshTimer);
-  if (waiting) mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), Number(data.refreshAfterSeconds || 15) * 1000);
-}
-
-async function queryMailBatch(tokens) {
-  return request('/api/query/batch', { tokens });
+  if (waiting && inboxWorkspace.dataset.view === 'batch') mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), Number(data.refreshAfterSeconds || 15) * 1000);
 }
 
 async function refreshMailBatch() {
   if (mailBatchRefreshInFlight || !activeMailBatchTokens.length) return;
   mailBatchRefreshInFlight = true;
   mailBatchErrorBox.textContent = '';
-  const refreshButton = document.querySelector('#refresh-mail-batch');
-  if (refreshButton) refreshButton.disabled = true;
   try {
-    renderMailBatch(await queryMailBatch(activeMailBatchTokens));
+    renderMailBatch(await request('/api/query/batch', { tokens: activeMailBatchTokens }));
   } catch (error) {
     clearTimeout(mailBatchRefreshTimer);
     mailBatchErrorBox.textContent = error.message;
   } finally {
     mailBatchRefreshInFlight = false;
-    if (refreshButton?.isConnected) refreshButton.disabled = false;
   }
-}
-
-function totpTitle(item) {
-  const names = [item.data.issuer, item.data.accountName].filter(Boolean);
-  return names.length ? names.join(' · ') : `2FA 密钥末四位 ${item.data.secretHint}`;
 }
 
 function totpPlatform(issuer) {
@@ -238,20 +284,17 @@ function renderTotps() {
     clearInterval(totpCountdownTimer);
     return;
   }
-  totpResultBox.innerHTML = `<div class="result-meta totp-result-meta"><strong>当前会话中的 2FA</strong><span>${entries.length} 条独立密钥</span></div><div class="totp-entry-list">${entries.map((item) => `
-    <section class="totp-entry" data-totp-entry="${item.data.id}">
-      <div class="totp-entry-head"><div class="totp-identity">${renderTotpAvatar(item.data.issuer)}<div><h2>${escapeHtml(item.data.issuer || '未命名平台')}</h2><p>${escapeHtml(item.data.accountName || `密钥末四位 ${item.data.secretHint}`)}</p></div></div><button class="btn btn-danger btn-icon" type="button" data-remove-totp="${item.data.id}" title="从当前页面移除" aria-label="从当前页面移除"><i data-lucide="x" class="icon"></i></button></div>
-      <div class="totp-code-line"><span class="code-value totp-code-value">${escapeHtml(item.data.code)}</span><button class="btn btn-secondary btn-icon" type="button" data-copy-totp="${item.data.id}" title="复制 2FA 验证码" aria-label="复制 2FA 验证码"><i data-lucide="copy" class="icon"></i></button></div>
-      <div class="totp-entry-foot"><span class="totp-live-dot"></span><span data-totp-remaining="${item.data.id}">${item.data.remaining} 秒后自动刷新</span><span class="totp-secret-hint">末四位 ${escapeHtml(item.data.secretHint)}</span></div>
-    </section>`).join('')}</div>`;
-  document.querySelectorAll('[data-copy-totp]').forEach((button) => button.addEventListener('click', () => {
-    copyCode(activeTotps.get(button.dataset.copyTotp).data.code, '2FA 验证码已复制');
-  }));
+  totpResultBox.innerHTML = `<div class="result-meta totp-result-meta"><strong>当前会话中的 2FA</strong><span>${entries.length} 条独立密钥</span></div><div class="totp-entry-list">${entries.map((item) => `<section class="totp-entry" data-totp-entry="${item.data.id}">
+    <div class="totp-entry-head"><div class="totp-identity">${renderTotpAvatar(item.data.issuer)}<div><h2>${escapeHtml(item.data.issuer || '未命名平台')}</h2><p>${escapeHtml(item.data.accountName || `密钥末四位 ${item.data.secretHint}`)}</p></div></div><button class="btn btn-danger btn-icon" type="button" data-remove-totp="${item.data.id}" title="从当前页面移除" aria-label="从当前页面移除"><i data-lucide="x" class="icon"></i></button></div>
+    <div class="totp-code-line"><span class="code-value totp-code-value">${escapeHtml(item.data.code)}</span><button class="btn btn-secondary btn-icon" type="button" data-copy-totp="${item.data.id}" title="复制 2FA 验证码" aria-label="复制 2FA 验证码"><i data-lucide="copy" class="icon"></i></button></div>
+    <div class="totp-entry-foot"><span class="totp-live-dot"></span><span data-totp-remaining="${item.data.id}">${item.data.remaining} 秒后自动刷新</span><span class="totp-secret-hint">末四位 ${escapeHtml(item.data.secretHint)}</span></div>
+  </section>`).join('')}</div>`;
+  document.querySelectorAll('[data-copy-totp]').forEach((button) => button.addEventListener('click', () => copyCode(activeTotps.get(button.dataset.copyTotp).data.code, '2FA 验证码已复制')));
   document.querySelectorAll('[data-remove-totp]').forEach((button) => button.addEventListener('click', () => {
     activeTotps.delete(button.dataset.removeTotp);
     renderTotps();
   }));
-  lucide.createIcons();
+  renderIcons();
   startTotpCountdown();
 }
 
@@ -310,39 +353,97 @@ async function refreshTotps() {
   }
 }
 
-document.querySelectorAll('[data-query-tab]').forEach((button) => button.addEventListener('click', () => {
-  const selected = button.dataset.queryTab;
-  document.querySelectorAll('[data-query-tab]').forEach((tab) => {
-    const active = tab === button;
-    tab.classList.toggle('active', active);
-    tab.setAttribute('aria-selected', String(active));
-  });
-  document.querySelectorAll('.query-panel').forEach((panel) => {
-    const active = panel.id === `${selected}-panel`;
-    panel.classList.toggle('active', active);
-    panel.hidden = !active;
-  });
+document.querySelectorAll('[data-public-view]').forEach((button) => button.addEventListener('click', async () => {
+  if (button.dataset.publicView === 'mail') {
+    const filter = button.dataset.mailFilter || 'all';
+    const changed = mailState.filter !== filter;
+    mailState.filter = filter;
+    mailListTitle.textContent = filter === 'code' ? '验证码邮件' : '全部邮件';
+    setPublicView('mail');
+    if (changed) {
+      try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+    }
+    return;
+  }
+  setPublicView(button.dataset.publicView);
 }));
 
-document.querySelectorAll('[data-mail-mode]').forEach((button) => button.addEventListener('click', () => {
-  const batchMode = button.dataset.mailMode === 'batch';
-  document.querySelectorAll('[data-mail-mode]').forEach((modeButton) => {
-    const active = modeButton === button;
-    modeButton.classList.toggle('active', active);
-    modeButton.setAttribute('aria-pressed', String(active));
-  });
-  mailForm.classList.toggle('hidden', batchMode);
-  mailBatchForm.classList.toggle('hidden', !batchMode);
-  mailResultBox.classList.toggle('hidden', batchMode || !mailResultBox.innerHTML);
-  mailBatchResultBox.classList.toggle('hidden', !batchMode || !mailBatchResultBox.innerHTML);
-  if (!batchMode) clearTimeout(mailBatchRefreshTimer);
-  else if (activeMailBatchTokens.length && mailBatchResultBox.innerHTML) mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), 15000);
-}));
+mailForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  mailErrorBox.textContent = '';
+  const button = mailForm.querySelector('[type="submit"]');
+  button.disabled = true;
+  mailState.token = mailTokenInput.value.trim();
+  try {
+    await loadMessages({ reset: true, unlock: true });
+    mailTokenInput.value = '';
+  } catch (error) {
+    mailErrorBox.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+changeKeyButton.addEventListener('click', () => {
+  mailState.token = '';
+  mailState.cursor = null;
+  mailState.keyword = '';
+  mailState.filter = 'all';
+  mailState.requestId += 1;
+  mailSearchInput.value = '';
+  mailMessageList.replaceChildren();
+  inboxWorkspace.classList.add('hidden');
+  accessView.classList.remove('hidden');
+  mailTokenInput.focus();
+});
+
+refreshMailButton.addEventListener('click', async () => {
+  try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+});
+
+mailLoadMoreButton.addEventListener('click', async () => {
+  try { await loadMessages(); } catch (error) { mailListStatus.textContent = error.message; }
+});
+
+mailSearchInput.addEventListener('input', () => {
+  clearTimeout(mailSearchTimer);
+  clearMailSearchButton.classList.toggle('hidden', !mailSearchInput.value);
+  mailSearchTimer = setTimeout(async () => {
+    mailState.keyword = mailSearchInput.value.trim();
+    try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+  }, 350);
+});
+
+clearMailSearchButton.addEventListener('click', () => {
+  mailSearchInput.value = '';
+  mailSearchInput.dispatchEvent(new Event('input'));
+  mailSearchInput.focus();
+});
 
 mailBatchTokensInput.addEventListener('input', () => {
   const count = parseBatchTokens().length;
   mailBatchCount.textContent = String(count);
   mailBatchCount.parentElement.classList.toggle('danger-text', count > 50);
+});
+
+mailBatchForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  mailBatchErrorBox.textContent = '';
+  const tokens = parseBatchTokens();
+  if (!tokens.length) return void (mailBatchErrorBox.textContent = '请至少输入一个查询密钥');
+  if (tokens.length > 50) return void (mailBatchErrorBox.textContent = '每次最多查询 50 个密钥');
+  const button = mailBatchForm.querySelector('[type="submit"]');
+  button.disabled = true;
+  clearTimeout(mailBatchRefreshTimer);
+  activeMailBatchTokens = tokens;
+  try {
+    renderMailBatch(await request('/api/query/batch', { tokens }));
+  } catch (error) {
+    activeMailBatchTokens = [];
+    mailBatchErrorBox.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 });
 
 totpQrUploadButton.addEventListener('click', () => totpQrFileInput.click());
@@ -360,50 +461,6 @@ totpQrFileInput.addEventListener('change', async () => {
   } finally {
     totpQrUploadButton.disabled = false;
     totpQrFileInput.value = '';
-  }
-});
-
-mailForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  mailErrorBox.textContent = '';
-  mailResultBox.classList.add('hidden');
-  const button = mailForm.querySelector('[type="submit"]');
-  button.disabled = true;
-  try {
-    activeMailToken = mailTokenInput.value.trim();
-    activeMailPage = 1;
-    renderMail(await request('/api/query', { token: activeMailToken, page: activeMailPage, pageSize: 20 }));
-  } catch (error) {
-    activeMailToken = '';
-    mailErrorBox.textContent = error.message;
-  } finally {
-    button.disabled = false;
-  }
-});
-
-mailBatchForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  mailBatchErrorBox.textContent = '';
-  const tokens = parseBatchTokens();
-  if (!tokens.length) {
-    mailBatchErrorBox.textContent = '请至少输入一个查询密钥';
-    return;
-  }
-  if (tokens.length > 50) {
-    mailBatchErrorBox.textContent = '每次最多查询 50 个密钥';
-    return;
-  }
-  const button = mailBatchForm.querySelector('[type="submit"]');
-  button.disabled = true;
-  clearTimeout(mailBatchRefreshTimer);
-  activeMailBatchTokens = tokens;
-  try {
-    renderMailBatch(await queryMailBatch(tokens));
-  } catch (error) {
-    activeMailBatchTokens = [];
-    mailBatchErrorBox.textContent = error.message;
-  } finally {
-    button.disabled = false;
   }
 });
 
@@ -426,4 +483,11 @@ totpForm.addEventListener('submit', async (event) => {
   }
 });
 
-lucide.createIcons();
+const loadObserver = new IntersectionObserver((entries) => {
+  if (entries[0]?.isIntersecting && mailState.cursor && !mailState.loading && inboxWorkspace.dataset.view === 'mail') {
+    loadMessages().catch((error) => { mailListStatus.textContent = error.message; });
+  }
+}, { root: mailListPane, rootMargin: '160px' });
+loadObserver.observe(mailLoadSentinel);
+
+renderIcons();

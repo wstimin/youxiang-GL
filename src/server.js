@@ -68,6 +68,86 @@ function mailAccountConfig(body, current = null) {
   return { provider, ...mailProviders[provider] };
 }
 
+function inferProvider(email, supplied = '') {
+  const requested = String(supplied || '').trim().toLowerCase();
+  if (mailProviders[requested]) return requested;
+  const domain = normalizeEmail(email).split('@')[1] || '';
+  if (['icloud.com', 'me.com', 'mac.com'].includes(domain)) return 'icloud';
+  if (['gmail.com', 'googlemail.com'].includes(domain)) return 'gmail';
+  if (['outlook.com', 'hotmail.com', 'live.com', 'msn.com'].includes(domain)) return 'outlook';
+  return '';
+}
+
+function parseImportAccount(item) {
+  const email = normalizeEmail(item?.email);
+  const provider = inferProvider(email, item?.provider);
+  const password = String(item?.password || item?.appPassword || '').trim();
+  if (!validEmail(email)) return { email, provider, password, error: '邮箱格式无效' };
+  if (!provider) return { email, provider, password, error: '无法识别邮箱服务商' };
+  if (password.length < 8) return { email, provider, password, error: '授权密码至少需要 8 个字符' };
+  return { email, provider, password, error: '' };
+}
+
+function importJobResponse(job, items = []) {
+  const retryableStatuses = new Set(['login_failed', 'timeout', 'failed']);
+  return {
+    id: job.id,
+    importType: job.import_type,
+    total: job.total_count,
+    waiting: job.waiting_count,
+    validating: job.validating_count,
+    syncing: job.syncing_count,
+    succeeded: job.success_count,
+    failed: job.failed_count,
+    retryable: items.filter((item) => retryableStatuses.has(item.status)).length,
+    status: job.status,
+    createdAt: job.created_at,
+    completedAt: job.completed_at,
+    items: items.map((item) => ({
+      id: item.id,
+      email: item.email,
+      provider: item.provider,
+      status: item.status,
+      failureReason: item.failure_reason || '',
+      attemptCount: item.attempt_count,
+      nextRetryAt: item.next_retry_at,
+      completedAt: item.completed_at
+    }))
+  };
+}
+
+async function createMailImportItem(client, jobId, item, status = 'waiting', failureReason = '') {
+  await client.query(
+    `INSERT INTO mail_import_items(
+       job_id, email, provider, app_password_encrypted, status, failure_reason, completed_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $5 = 'waiting' THEN NULL ELSE NOW() END)`,
+    [
+      jobId,
+      item.email,
+      item.provider || 'unknown',
+      status === 'waiting' ? encrypt(item.password) : null,
+      status,
+      failureReason || null
+    ]
+  );
+}
+
+function adminMailMessageResponse(row) {
+  const codeActive = row.code_encrypted && row.code_expires_at && new Date(row.code_expires_at) > new Date();
+  return {
+    id: row.id,
+    mailbox: row.address || '未归类邮箱',
+    sender: row.sender,
+    recipients: decrypt(row.recipients_encrypted) || '',
+    subject: row.subject,
+    body: decrypt(row.body_text_encrypted) || '',
+    code: codeActive ? decrypt(row.code_encrypted) : null,
+    codeMasked: codeActive ? row.code_masked : null,
+    confidence: row.confidence,
+    receivedAt: row.received_at
+  };
+}
+
 function readCookie(req, name) {
   const cookies = String(req.headers.cookie || '').split(';');
   for (const cookie of cookies) {
@@ -109,7 +189,7 @@ async function failureGuard(action, ip, max, windowMinutes = 15) {
 async function findPublicAlias(token) {
   if (token.length < 20 || token.length > 200) return null;
   const result = await pool.query(
-    `SELECT id, address, label FROM aliases
+    `SELECT id FROM aliases
      WHERE token_digest = $1 AND enabled = TRUE
        AND (token_expires_at IS NULL OR token_expires_at > NOW())`,
     [digest(token)]
@@ -139,6 +219,36 @@ function mailMessageResponse(message, includeBody = false) {
     expiresAt: message.expires_at,
     mailExpiresAt: message.mail_expires_at
   };
+}
+
+function publicMailMessageResponse(message) {
+  const codeActive = message.code_encrypted && message.code_expires_at && new Date(message.code_expires_at).getTime() > Date.now();
+  return {
+    id: message.id,
+    sender: message.sender,
+    subject: message.subject,
+    bodyPreview: message.body_preview || '',
+    hasCode: Boolean(codeActive),
+    codeMasked: codeActive ? message.code_masked : null,
+    confidence: message.confidence,
+    receivedAt: message.received_at
+  };
+}
+
+function parsePublicCursor(value) {
+  if (!value) return { receivedAt: null, id: null };
+  try {
+    const decoded = JSON.parse(Buffer.from(String(value), 'base64url').toString('utf8'));
+    const id = Number(decoded.id);
+    if (!decoded.receivedAt || !Number.isSafeInteger(id) || id < 1) throw new Error('invalid cursor');
+    return { receivedAt: decoded.receivedAt, id };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function makePublicCursor(row) {
+  return row ? Buffer.from(JSON.stringify({ receivedAt: row.received_at, id: row.id })).toString('base64url') : null;
 }
 
 function totpEntryResponse(entry, secret) {
@@ -318,66 +428,29 @@ app.post('/api/query', async (req, res, next) => {
       await audit({ actor: 'public', action: 'query_failed', ip, detail: 'unknown token' });
       return res.status(401).json({ error: '查询密钥无效或已失效' });
     }
-    if (await verificationModeEnabled()) {
-      const messageResult = await pool.query(
-        `SELECT id, sender, subject, code_encrypted, code_masked,
-                confidence, received_at, expires_at, mail_expires_at
-         FROM verification_messages
-         WHERE alias_id = $1 AND mail_expires_at > NOW()
-           AND expires_at > NOW() AND code_encrypted IS NOT NULL
-         ORDER BY received_at DESC, id DESC LIMIT 1`,
-        [alias.id]
-      );
-      await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=code' });
-      const row = messageResult.rows[0];
-      return res.json({
-        mode: 'code',
-        alias: maskEmail(alias.address),
-        label: alias.label,
-        message: row ? {
-          id: row.id,
-          sender: row.sender,
-          subject: row.subject,
-          code: decrypt(row.code_encrypted),
-          codeMasked: row.code_masked,
-          confidence: row.confidence,
-          receivedAt: row.received_at,
-          expiresAt: row.expires_at,
-          mailExpiresAt: row.mail_expires_at
-        } : null
-      });
-    }
-    const page = Math.max(1, Math.min(1000000, Number.parseInt(req.body.page, 10) || 1));
-    const pageSize = Math.max(1, Math.min(50, Number.parseInt(req.body.pageSize, 10) || mailPageSize));
-    const offset = (page - 1) * pageSize;
-    const countResult = await pool.query(
-      `SELECT COUNT(*)::int AS total
-       FROM verification_messages
-       WHERE alias_id = $1 AND mail_expires_at > NOW()`,
-      [alias.id]
-    );
+    const limit = Math.max(1, Math.min(50, Number.parseInt(req.body.limit, 10) || 40));
+    const keyword = String(req.body.keyword || '').trim().slice(0, 120);
+    const codeOnly = String(req.body.status || '') === 'code';
+    const cursor = parsePublicCursor(req.body.cursor);
+    if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
     const messageResult = await pool.query(
-      `SELECT id, sender, subject, body_text_encrypted, code_encrypted, code_masked,
-              confidence, received_at, expires_at, mail_expires_at
-       FROM verification_messages
+      `SELECT id, sender, subject, body_preview, code_encrypted, code_masked,
+              confidence, code_expires_at, received_at
+       FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()
-       ORDER BY received_at DESC, id DESC LIMIT $2 OFFSET $3`,
-      [alias.id, pageSize, offset]
+         AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%')
+         AND ($3::boolean = FALSE OR (code_encrypted IS NOT NULL AND code_expires_at > NOW()))
+         AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
+       ORDER BY received_at DESC, id DESC LIMIT $6`,
+      [alias.id, keyword, codeOnly, cursor.receivedAt, cursor.id, limit + 1]
     );
     await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=text' });
-    const total = countResult.rows[0]?.total || 0;
-    const messages = messageResult.rows.map((row) => ({
-      ...mailMessageResponse(row),
-      bodyPreview: row.body_text_encrypted ? String(decrypt(row.body_text_encrypted) || '').slice(0, 320) : ''
-    }));
-    const message = messages.find((item) => item.code && new Date(item.expiresAt).getTime() > Date.now()) || null;
+    const messages = messageResult.rows.slice(0, limit).map(publicMailMessageResponse);
+    const hasMore = messageResult.rows.length > limit;
     return res.json({
       mode: 'text',
-      alias: maskEmail(alias.address),
-      label: alias.label,
-      message,
       messages,
-      pagination: { page, pageSize, total, hasMore: offset + messages.length < total }
+      nextCursor: hasMore ? makePublicCursor(messageResult.rows[limit - 1]) : null
     });
   } catch (error) { next(error); }
 });
@@ -391,9 +464,6 @@ app.post('/api/query/message', async (req, res, next) => {
     return res.status(429).json({ error: '请求过于频繁，请稍后重试' });
   }
   try {
-    if (await verificationModeEnabled()) {
-      return res.status(403).json({ error: '当前已启用验证码方式，邮件正文查询已关闭' });
-    }
     const token = String(req.body.token || '').trim();
     const messageId = Number.parseInt(req.body.messageId, 10);
     if (token.length < 20 || token.length > 200 || !Number.isSafeInteger(messageId) || messageId < 1) {
@@ -402,15 +472,20 @@ app.post('/api/query/message', async (req, res, next) => {
     const alias = await findPublicAlias(token);
     if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
     const result = await pool.query(
-      `SELECT id, sender, subject, body_text_encrypted, code_encrypted, code_masked,
-              confidence, received_at, expires_at, mail_expires_at
-       FROM verification_messages
+      `SELECT id, sender, subject, body_text_encrypted,
+              body_preview, code_encrypted, code_masked, confidence,
+              code_expires_at, received_at
+       FROM mail_messages
        WHERE id = $1 AND alias_id = $2 AND mail_expires_at > NOW()`,
       [messageId, alias.id]
     );
     if (!result.rowCount) return res.status(404).json({ error: '邮件不存在或已过期' });
     await audit({ actor: `alias:${alias.id}`, action: 'query_message_success', target: String(messageId), ip });
-    return res.json({ message: mailMessageResponse(result.rows[0], true) });
+    const row = result.rows[0];
+    const message = publicMailMessageResponse(row);
+    message.code = message.hasCode ? decrypt(row.code_encrypted) : null;
+    message.body = decrypt(row.body_text_encrypted) || '';
+    return res.json({ message });
   } catch (error) { next(error); }
 });
 
@@ -439,7 +514,7 @@ app.post('/api/query/batch', async (req, res, next) => {
     const tokenDigests = tokens.map((token) => token.length >= 20 && token.length <= 200 ? digest(token) : null);
     const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
     const matched = searchableDigests.length ? await pool.query(
-      `SELECT a.id, a.address, a.label, a.token_digest,
+      `SELECT a.id, a.token_digest,
          v.id AS message_id, v.sender, v.subject, v.code_encrypted, v.received_at, v.expires_at,
          v.mail_expires_at
        FROM aliases a
@@ -456,7 +531,7 @@ app.post('/api/query/batch', async (req, res, next) => {
     const aliasesByDigest = new Map(matched.rows.map((row) => [row.token_digest, row]));
     const results = tokens.map((_token, index) => {
       const alias = aliasesByDigest.get(tokenDigests[index]);
-      if (!alias) return { index, status: 'invalid', alias: null, label: '', message: null };
+      if (!alias) return { index, status: 'invalid', message: null };
       const message = alias.message_id ? {
         id: alias.message_id,
         code: decrypt(alias.code_encrypted),
@@ -468,8 +543,6 @@ app.post('/api/query/batch', async (req, res, next) => {
       return {
         index,
         status: message ? 'received' : 'waiting',
-        alias: maskEmail(alias.address),
-        label: alias.label,
         message
       };
     });
@@ -649,6 +722,181 @@ app.post('/api/admin/mail-account/:id/sync', ...adminApi(async (req, res) => {
   if (!result.rowCount) return res.status(404).json({ error: '母邮箱不存在或已停用' });
   await audit({ actor: `user:${req.admin.id}`, action: 'mail_sync_requested', target: result.rows[0].email, ip: extractClientIp(req) });
   res.json({ ok: true });
+}));
+
+app.post('/api/admin/mail-accounts/import', ...adminApi(async (req, res) => {
+  const requested = Array.isArray(req.body.accounts) ? req.body.accounts : [];
+  if (!requested.length) return res.status(400).json({ error: '请至少提供一个邮箱账户' });
+  if (requested.length > 100) return res.status(400).json({ error: '每次最多批量导入 100 个邮箱' });
+
+  const parsed = requested.map(parseImportAccount);
+  const seen = new Set();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const jobResult = await client.query(
+      `INSERT INTO mail_import_jobs(admin_id, import_type, total_count, waiting_count, status)
+       VALUES ($1, 'mail_accounts', $2, $2, 'queued') RETURNING *`,
+      [req.admin.id, parsed.length]
+    );
+    const job = jobResult.rows[0];
+    for (const item of parsed) {
+      const duplicateInFile = !item.error && seen.has(item.email);
+      if (!item.error) seen.add(item.email);
+      const status = item.error ? 'format_error' : duplicateInFile ? 'duplicate' : 'waiting';
+      const failureReason = item.error || (duplicateInFile ? 'CSV 中存在重复邮箱' : '');
+      await createMailImportItem(client, job.id, item, status, failureReason);
+    }
+    await client.query(
+      `UPDATE mail_import_jobs j SET
+         waiting_count = s.waiting_count, failed_count = s.failed_count,
+         status = CASE WHEN s.waiting_count > 0 THEN 'queued' ELSE 'failed' END,
+         completed_at = CASE WHEN s.waiting_count = 0 THEN NOW() ELSE NULL END
+       FROM (
+         SELECT job_id,
+           COUNT(*) FILTER (WHERE status = 'waiting')::int AS waiting_count,
+           COUNT(*) FILTER (WHERE status IN ('format_error', 'duplicate'))::int AS failed_count
+         FROM mail_import_items WHERE job_id = $1 GROUP BY job_id
+       ) s WHERE j.id = s.job_id`,
+      [job.id]
+    );
+    await client.query('COMMIT');
+    await audit({ actor: `user:${req.admin.id}`, action: 'mail_accounts_imported', target: String(job.id), detail: `requested=${parsed.length}`, ip: extractClientIp(req) });
+    res.status(202).json({ ok: true, jobId: job.id, total: parsed.length });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}));
+
+app.get('/api/admin/mail-import-jobs/:id', ...adminApi(async (req, res) => {
+  noStore(res);
+  const [jobResult, itemsResult] = await Promise.all([
+    pool.query('SELECT * FROM mail_import_jobs WHERE id = $1 AND admin_id = $2', [req.params.id, req.admin.id]),
+    pool.query(
+      `SELECT id, email, provider, status, failure_reason, attempt_count, next_retry_at, completed_at
+       FROM mail_import_items
+       WHERE job_id = $1
+         AND EXISTS (
+           SELECT 1 FROM mail_import_jobs j
+           WHERE j.id = mail_import_items.job_id AND j.admin_id = $2
+         )
+       ORDER BY id`,
+      [req.params.id, req.admin.id]
+    )
+  ]);
+  if (!jobResult.rowCount) return res.status(404).json({ error: '导入任务不存在' });
+  res.json(importJobResponse(jobResult.rows[0], itemsResult.rows));
+}));
+
+app.post('/api/admin/mail-import-jobs/:id/retry', ...adminApi(async (req, res) => {
+  const job = await pool.query('SELECT id FROM mail_import_jobs WHERE id = $1 AND admin_id = $2', [req.params.id, req.admin.id]);
+  if (!job.rowCount) return res.status(404).json({ error: '导入任务不存在' });
+  const result = await pool.query(
+    `UPDATE mail_import_items SET status = 'waiting', failure_reason = NULL,
+       attempt_count = 0, next_retry_at = NULL, completed_at = NULL
+     WHERE job_id = $1 AND status IN ('login_failed', 'timeout', 'failed') RETURNING id`,
+    [req.params.id]
+  );
+  if (!result.rowCount) return res.status(400).json({ error: '没有可重试的失败项' });
+  await pool.query(
+    `UPDATE mail_import_jobs SET status = 'queued', waiting_count = $1,
+     failed_count = GREATEST(0, failed_count - $1), completed_at = NULL WHERE id = $2`,
+    [result.rowCount, req.params.id]
+  );
+  await audit({ actor: `user:${req.admin.id}`, action: 'mail_import_retried', target: String(req.params.id), detail: String(result.rowCount), ip: extractClientIp(req) });
+  res.json({ ok: true, retried: result.rowCount });
+}));
+
+app.get('/api/admin/mailbox-tree', ...adminApi(async (req, res) => {
+  noStore(res);
+  const keyword = String(req.query.keyword || '').trim().toLowerCase().slice(0, 120);
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const limit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 20));
+  const offset = (page - 1) * limit;
+  const result = await pool.query(
+    `SELECT m.id, m.email, m.provider, m.enabled, m.verification_status, m.sync_status,
+       m.last_error, m.last_synced_at,
+       COUNT(DISTINCT a.id)::int AS alias_count,
+       COUNT(DISTINCT mm.id)::int AS message_count
+     FROM mail_accounts m
+     LEFT JOIN aliases a ON a.mail_account_id = m.id
+     LEFT JOIN mail_messages mm ON mm.mail_account_id = m.id AND mm.mail_expires_at > NOW()
+     WHERE ($1 = '' OR LOWER(m.email) LIKE '%' || $1 || '%')
+     GROUP BY m.id ORDER BY m.id DESC LIMIT $2 OFFSET $3`,
+    [keyword, limit, offset]
+  );
+  res.json({ accounts: result.rows, pagination: { page, limit, hasMore: result.rows.length === limit } });
+}));
+
+app.get('/api/admin/messages', ...adminApi(async (req, res) => {
+  noStore(res);
+  const accountId = Number.parseInt(req.query.mailAccountId, 10) || null;
+  const aliasId = Number.parseInt(req.query.aliasId, 10) || null;
+  const keyword = String(req.query.keyword || '').trim().slice(0, 120);
+  const codeOnly = req.query.status === 'code';
+  const limit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 40));
+  let cursorDate = null;
+  let cursorId = null;
+  if (req.query.cursor) {
+    try {
+      const decoded = JSON.parse(Buffer.from(String(req.query.cursor), 'base64url').toString('utf8'));
+      cursorDate = decoded.receivedAt;
+      cursorId = Number(decoded.id);
+    } catch (_error) {
+      return res.status(400).json({ error: '邮件游标无效' });
+    }
+  }
+  const result = await pool.query(
+    `SELECT mm.id, mm.alias_id, a.address, mm.sender, mm.subject, mm.body_preview,
+       mm.code_masked, mm.confidence, mm.code_expires_at, mm.received_at
+     FROM mail_messages mm
+     LEFT JOIN aliases a ON a.id = mm.alias_id
+     WHERE mm.mail_expires_at > NOW()
+       AND ($1::bigint IS NULL OR mm.mail_account_id = $1)
+       AND ($2::bigint IS NULL OR mm.alias_id = $2)
+       AND ($3 = '' OR mm.sender ILIKE '%' || $3 || '%' OR mm.subject ILIKE '%' || $3 || '%' OR a.address ILIKE '%' || $3 || '%')
+       AND ($4::boolean = FALSE OR mm.code_encrypted IS NOT NULL)
+       AND ($5::timestamptz IS NULL OR (mm.received_at, mm.id) < ($5::timestamptz, $6::bigint))
+     ORDER BY mm.received_at DESC, mm.id DESC LIMIT $7`,
+    [accountId, aliasId, keyword, codeOnly, cursorDate, cursorId, limit + 1]
+  );
+  const hasMore = result.rows.length > limit;
+  const rows = result.rows.slice(0, limit);
+  const last = rows[rows.length - 1];
+  res.json({
+    messages: rows.map((row) => ({
+      id: row.id,
+      mailbox: row.address || '未归类邮箱',
+      sender: row.sender,
+      subject: row.subject,
+      bodyPreview: row.body_preview,
+      codeMasked: row.code_expires_at && new Date(row.code_expires_at) > new Date() ? row.code_masked : null,
+      confidence: row.confidence,
+      receivedAt: row.received_at
+    })),
+    nextCursor: hasMore && last
+      ? Buffer.from(JSON.stringify({ receivedAt: last.received_at, id: last.id })).toString('base64url')
+      : null
+  });
+}));
+
+app.get('/api/admin/messages/:id', ...adminApi(async (req, res) => {
+  noStore(res);
+  const result = await pool.query(
+    `SELECT mm.id, a.address, mm.sender, mm.recipients_encrypted, mm.subject,
+       mm.body_text_encrypted, mm.code_encrypted, mm.code_masked, mm.confidence,
+       mm.code_expires_at, mm.received_at
+     FROM mail_messages mm LEFT JOIN aliases a ON a.id = mm.alias_id
+     WHERE mm.id = $1 AND mm.mail_expires_at > NOW()`,
+    [req.params.id]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: '邮件不存在或已过期' });
+  const row = result.rows[0];
+  await audit({ actor: `user:${req.admin.id}`, action: 'admin_message_opened', target: String(row.id), ip: extractClientIp(req) });
+  res.json({ message: adminMailMessageResponse(row) });
 }));
 
 app.delete('/api/admin/sessions/:id', ...adminApi(async (req, res) => {
@@ -832,10 +1080,11 @@ app.get('/api/admin/aliases/export', ...adminApi(async (req, res) => {
 
 app.post('/api/admin/aliases/import', ...adminApi(async (req, res) => {
   const accountId = Number(req.body.mailAccountId);
-  const requested = Array.isArray(req.body.aliases) ? req.body.aliases.slice(0, 500) : [];
+  const requested = Array.isArray(req.body.aliases) ? req.body.aliases : [];
   const account = await pool.query('SELECT id, email FROM mail_accounts WHERE id = $1', [accountId]);
   if (!account.rowCount) return res.status(400).json({ error: '请选择有效的母邮箱' });
   if (!requested.length) return res.status(400).json({ error: '请提供至少一个子邮箱' });
+  if (requested.length > 100) return res.status(400).json({ error: '每次最多批量导入 100 个邮箱' });
 
   const created = [];
   const skipped = [];

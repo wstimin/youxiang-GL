@@ -137,6 +137,7 @@ async function cleanExpired() {
        OR (mail_expires_at IS NULL AND received_at < NOW() - ($1::text || ' days')::interval)`,
     [String(mailRetentionDays)]
   );
+  await pool.query('DELETE FROM mail_messages WHERE mail_expires_at < NOW()');
   await pool.query(
     "DELETE FROM unmatched_messages WHERE created_at < NOW() - ($1::text || ' days')::interval",
     [String(unmatchedRetentionDays)]

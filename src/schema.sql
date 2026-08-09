@@ -64,6 +64,12 @@ ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS uid_validity TEXT;
 ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS sync_requested_at TIMESTAMPTZ;
 ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS body_sync_completed_at TIMESTAMPTZ;
 ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'icloud';
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS verification_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS failure_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS sync_locked_at TIMESTAMPTZ;
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS first_sync_completed BOOLEAN NOT NULL DEFAULT FALSE;
 UPDATE mail_accounts SET provider = CASE
   WHEN LOWER(host) = 'imap.gmail.com' THEN 'gmail'
   WHEN LOWER(host) IN ('outlook.office365.com', 'imap-mail.outlook.com') THEN 'outlook'
@@ -138,6 +144,69 @@ CREATE INDEX IF NOT EXISTS verification_messages_expires_idx
   ON verification_messages(expires_at);
 CREATE INDEX IF NOT EXISTS verification_messages_mail_expires_idx
   ON verification_messages(mail_expires_at);
+
+CREATE TABLE IF NOT EXISTS mail_import_jobs (
+  id BIGSERIAL PRIMARY KEY,
+  admin_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  import_type TEXT NOT NULL CHECK (import_type IN ('aliases', 'mail_accounts')),
+  total_count INTEGER NOT NULL DEFAULT 0,
+  waiting_count INTEGER NOT NULL DEFAULT 0,
+  validating_count INTEGER NOT NULL DEFAULT 0,
+  syncing_count INTEGER NOT NULL DEFAULT 0,
+  success_count INTEGER NOT NULL DEFAULT 0,
+  failed_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'queued',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS mail_import_jobs_admin_idx ON mail_import_jobs(admin_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS mail_import_items (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES mail_import_jobs(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'icloud',
+  app_password_encrypted TEXT,
+  status TEXT NOT NULL DEFAULT 'waiting',
+  failure_reason TEXT,
+  mail_account_id BIGINT REFERENCES mail_accounts(id) ON DELETE SET NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  next_retry_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS mail_import_items_queue_idx
+  ON mail_import_items(status, next_retry_at, id);
+CREATE INDEX IF NOT EXISTS mail_import_items_job_idx ON mail_import_items(job_id, id);
+
+CREATE TABLE IF NOT EXISTS mail_messages (
+  id BIGSERIAL PRIMARY KEY,
+  mail_account_id BIGINT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  alias_id BIGINT REFERENCES aliases(id) ON DELETE SET NULL,
+  uid BIGINT NOT NULL,
+  uid_validity TEXT NOT NULL,
+  message_id TEXT NOT NULL DEFAULT '',
+  sender TEXT NOT NULL DEFAULT '',
+  recipients_encrypted TEXT,
+  subject TEXT NOT NULL DEFAULT '',
+  body_preview TEXT NOT NULL DEFAULT '',
+  body_text_encrypted TEXT,
+  code_encrypted TEXT,
+  code_masked TEXT,
+  confidence SMALLINT NOT NULL DEFAULT 0,
+  code_expires_at TIMESTAMPTZ,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  mail_expires_at TIMESTAMPTZ NOT NULL,
+  synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (mail_account_id, uid_validity, uid)
+);
+
+ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS code_expires_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS mail_messages_recent_idx ON mail_messages(received_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS mail_messages_alias_recent_idx ON mail_messages(alias_id, received_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS unmatched_messages (
   id BIGSERIAL PRIMARY KEY,

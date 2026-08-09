@@ -4,97 +4,113 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <title>验证码查询</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-7">
+  <title>只读邮件中心</title>
+  <link rel="stylesheet" href="/assets/styles.css?v=20260809-10">
 </head>
 <body class="public-shell">
   <header class="public-head">
-    <div class="brand"><span class="brand-mark"><i data-lucide="mail-check"></i></span><span>验证码中心</span></div>
-    <span class="secure-status"><span></span>服务运行中</span>
+    <div class="brand"><span class="brand-mark"><i data-lucide="mail-check"></i></span><span>邮件中心</span></div>
+    <span class="secure-status"><span></span>只读安全访问</span>
   </header>
-  <main class="public-main">
-    <section class="query-tool" aria-labelledby="query-title">
-      <div class="query-heading">
-        <span class="eyebrow">SECURE CODE WORKSPACE</span>
-        <h1 id="query-title">邮件查询</h1>
-        <p>邮件查询与独立 2FA 转换</p>
-      </div>
-      <div class="query-tabs" role="tablist" aria-label="验证码类型">
-        <button id="mail-tab" class="query-tab active" type="button" role="tab" aria-selected="true" aria-controls="mail-panel" data-query-tab="mail"><span class="tab-icon"><i data-lucide="mail" class="icon"></i></span><span><strong>获取邮件</strong><small>验证码或 7 天邮件</small></span></button>
-        <button id="totp-tab" class="query-tab" type="button" role="tab" aria-selected="false" aria-controls="totp-panel" data-query-tab="totp"><span class="tab-icon"><i data-lucide="fingerprint" class="icon"></i></span><span><strong>2FA 验证码</strong><small>转换动态安全码</small></span></button>
-      </div>
 
-      <section id="mail-panel" class="query-panel active" role="tabpanel" aria-labelledby="mail-tab">
-        <div class="query-workspace">
-          <section class="workspace-card input-card">
-            <header class="workspace-card-head"><span class="workspace-icon mail"><i data-lucide="key-round" class="icon"></i></span><div><span class="card-kicker">MAIL LOOKUP</span><h2>邮箱查询密钥</h2></div></header>
-            <p class="card-copy">请在下方输入邮件查询密钥。</p>
-            <div class="mail-mode-switch" role="group" aria-label="邮箱验证码查询模式">
-              <button class="mail-mode-button active" type="button" data-mail-mode="single" aria-pressed="true"><i data-lucide="key-round" class="icon"></i><span>单个查询</span></button>
-              <button class="mail-mode-button" type="button" data-mail-mode="batch" aria-pressed="false"><i data-lucide="list-checks" class="icon"></i><span>批量查询</span></button>
-            </div>
-            <form id="mail-query-form">
-              <div class="field">
-                <label for="mail-token">邮箱查询密钥</label>
-                <input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="cv_...">
-              </div>
-              <p id="mail-query-error" class="message" role="alert"></p>
-              <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="search" class="icon"></i><span>获取最新邮件</span></button>
-            </form>
-            <form id="mail-batch-form" class="hidden">
-              <div class="field">
-                <label for="mail-batch-tokens">批量查询密钥</label>
-                <textarea id="mail-batch-tokens" name="tokens" rows="10" maxlength="10100" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥，最多 50 个"></textarea>
-                <div class="field-tools batch-field-tools"><small><span id="mail-batch-count">0</span> / 50 个密钥</small><small>结果每 15 秒自动刷新</small></div>
-              </div>
-              <p id="mail-batch-error" class="message" role="alert"></p>
-              <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="search-check" class="icon"></i><span>开始批量接收邮件</span></button>
-            </form>
-          </section>
-          <section class="workspace-card output-card">
-            <header class="workspace-card-head"><span class="workspace-icon output"><i data-lucide="radio" class="icon"></i></span><div><span class="card-kicker">LIVE OUTPUT</span><h2>实时查询结果</h2></div></header>
-            <div class="output-surface mail-output-surface">
-              <div class="result-placeholder"><span class="placeholder-icon"><i data-lucide="mail-search"></i></span><strong>等待查询邮箱</strong><p>提交查询密钥后，结果会按照当前全局查询方式显示。</p></div>
-              <div id="mail-result" class="result hidden" aria-live="polite"></div>
-              <div id="mail-batch-result" class="result hidden" aria-live="polite"></div>
-            </div>
-          </section>
+  <main class="public-main">
+    <section id="access-view" class="access-view" aria-labelledby="access-title">
+      <div class="access-panel">
+        <span class="access-icon"><i data-lucide="key-round"></i></span>
+        <span class="eyebrow">SECURE INBOX</span>
+        <h1 id="access-title">打开你的收件箱</h1>
+        <p>输入查询密钥后查看最近 7 天邮件。密钥只保留在当前页面内存中。</p>
+        <form id="mail-query-form">
+          <div class="field">
+            <label for="mail-token">查询密钥</label>
+            <input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="cv_...">
+          </div>
+          <p id="mail-query-error" class="message" role="alert"></p>
+          <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="unlock-keyhole" class="icon"></i><span>进入收件箱</span></button>
+        </form>
+      </div>
+    </section>
+
+    <section id="inbox-workspace" class="public-inbox-workspace hidden" aria-label="只读邮件中心">
+      <aside class="public-inbox-nav">
+        <div class="public-session">
+          <span class="public-session-icon"><i data-lucide="shield-check"></i></span>
+          <div><strong>当前会话</strong><small>只读访问</small></div>
+        </div>
+
+        <nav class="public-nav" aria-label="功能导航">
+          <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>全部邮件</span></button>
+          <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>验证码邮件</span></button>
+          <button type="button" data-public-view="batch"><i data-lucide="list-checks" class="icon"></i><span>批量查码</span></button>
+          <button type="button" data-public-view="totp"><i data-lucide="fingerprint" class="icon"></i><span>2FA 工具</span></button>
+        </nav>
+
+        <div class="public-nav-foot">
+          <button id="change-key" class="public-quiet-button" type="button"><i data-lucide="log-out" class="icon"></i><span>更换查询密钥</span></button>
+        </div>
+      </aside>
+
+      <section id="mail-list-pane" class="public-message-pane">
+        <header class="public-pane-head">
+          <div><span class="pane-kicker">INBOX</span><h1 id="mail-list-title">全部邮件</h1></div>
+          <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
+        </header>
+        <div class="public-search">
+          <i data-lucide="search" class="icon"></i>
+          <input id="mail-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人或主题">
+          <button id="clear-mail-search" class="hidden" type="button" title="清除搜索" aria-label="清除搜索"><i data-lucide="x"></i></button>
+        </div>
+        <p id="mail-list-status" class="public-list-status" role="status"></p>
+        <div id="mail-message-list" class="public-message-list" aria-live="polite"></div>
+        <div id="mail-list-empty" class="public-empty hidden"><i data-lucide="mail-search"></i><strong>没有找到邮件</strong><span>可以刷新或修改搜索条件。</span></div>
+        <div id="mail-load-sentinel" class="public-load-sentinel">
+          <button id="mail-load-more" class="btn btn-secondary hidden" type="button"><i data-lucide="chevrons-down" class="icon"></i><span>加载更多</span></button>
         </div>
       </section>
 
-      <section id="totp-panel" class="query-panel" role="tabpanel" aria-labelledby="totp-tab" hidden>
-        <div class="query-workspace">
-          <section class="workspace-card input-card">
-            <header class="workspace-card-head"><span class="workspace-icon totp"><i data-lucide="fingerprint" class="icon"></i></span><div><span class="card-kicker">TOTP GENERATOR</span><h2>输入 2FA 密钥</h2></div></header>
-            <p class="card-copy">每个密钥独立保存，可以继续添加其他平台或账号。</p>
-            <form id="totp-query-form">
-              <div class="field">
-                <label for="totp-secret">2FA 手动密钥或 otpauth 地址</label>
-                <textarea id="totp-secret" name="secret" rows="4" maxlength="4096" autocomplete="off" spellcheck="false" required placeholder="JBSWY3DPEHPK3PXP 或 otpauth://totp/..."></textarea>
-                <div class="field-tools"><input id="totp-qr-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp"><button id="totp-qr-upload" class="btn btn-secondary" type="button"><i data-lucide="scan-qr-code" class="icon"></i><span>识别二维码图片</span></button><small>图片仅在当前浏览器本地识别，不会上传。</small></div>
-              </div>
-              <div class="form-grid totp-meta-fields">
-                <div class="field"><label for="totp-issuer">平台名称（可选）</label><input id="totp-issuer" maxlength="120" placeholder="例如 GitHub"></div>
-                <div class="field"><label for="totp-account-name">账号备注（可选）</label><input id="totp-account-name" maxlength="160" placeholder="例如 user@example.com"></div>
-              </div>
-              <p id="totp-query-error" class="message" role="alert"></p>
-              <button class="btn btn-primary btn-block btn-large totp-convert-button" type="submit"><i data-lucide="key-round" class="icon"></i><span>获取 2FA 验证码</span></button>
-            </form>
-          </section>
-          <section class="workspace-card output-card">
-            <header class="workspace-card-head"><span class="workspace-icon output"><i data-lucide="scan-line" class="icon"></i></span><div><span class="card-kicker">LIVE OUTPUT</span><h2>动态验证码</h2></div></header>
-            <div class="output-surface totp-output-surface">
-              <div class="result-placeholder totp-placeholder"><span class="placeholder-icon totp-placeholder-icon"><i data-lucide="fingerprint"></i></span><strong>等待输入 2FA 密钥</strong><p>转换后的平台与动态验证码会显示在这里。</p><div class="placeholder-code" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-              <div id="totp-result" class="result hidden" aria-live="polite"></div>
+      <article id="mail-detail" class="public-message-detail">
+        <div class="public-detail-empty"><i data-lucide="mail-open"></i><strong>选择一封邮件</strong><span>正文将在点击后按需、安全地加载。</span></div>
+      </article>
+
+      <section id="batch-view" class="public-tool-view hidden" aria-labelledby="batch-title">
+        <header class="public-tool-head"><div><span class="pane-kicker">BATCH LOOKUP</span><h1 id="batch-title">批量查找验证码</h1><p>每行一个查询密钥，最多 50 个。等待中的结果会自动刷新。</p></div></header>
+        <form id="mail-batch-form" class="public-tool-form">
+          <div class="field">
+            <label for="mail-batch-tokens">查询密钥</label>
+            <textarea id="mail-batch-tokens" name="tokens" rows="10" maxlength="10100" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥"></textarea>
+            <div class="field-tools batch-field-tools"><small><span id="mail-batch-count">0</span> / 50 个密钥</small><small>结果每 15 秒自动刷新</small></div>
+          </div>
+          <p id="mail-batch-error" class="message" role="alert"></p>
+          <button class="btn btn-primary" type="submit"><i data-lucide="search-check" class="icon"></i><span>开始查询</span></button>
+        </form>
+        <div id="mail-batch-result" class="public-tool-result hidden" aria-live="polite"></div>
+      </section>
+
+      <section id="totp-view" class="public-tool-view hidden" aria-labelledby="totp-title">
+        <header class="public-tool-head"><div><span class="pane-kicker">TOTP GENERATOR</span><h1 id="totp-title">2FA 动态验证码</h1><p>密钥独立处理，二维码图片仅在当前浏览器本地识别。</p></div></header>
+        <div class="public-totp-layout">
+          <form id="totp-query-form" class="public-tool-form">
+            <div class="field">
+              <label for="totp-secret">2FA 密钥或 otpauth 地址</label>
+              <textarea id="totp-secret" name="secret" rows="4" maxlength="4096" autocomplete="off" spellcheck="false" required placeholder="JBSWY3DPEHPK3PXP 或 otpauth://totp/..."></textarea>
+              <div class="field-tools"><input id="totp-qr-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp"><button id="totp-qr-upload" class="btn btn-secondary" type="button"><i data-lucide="scan-qr-code" class="icon"></i><span>识别二维码图片</span></button><small>图片不会上传。</small></div>
             </div>
-          </section>
+            <div class="form-grid totp-meta-fields">
+              <div class="field"><label for="totp-issuer">平台名称（可选）</label><input id="totp-issuer" maxlength="120" placeholder="例如 GitHub"></div>
+              <div class="field"><label for="totp-account-name">账号备注（可选）</label><input id="totp-account-name" maxlength="160" placeholder="例如 user@example.com"></div>
+            </div>
+            <p id="totp-query-error" class="message" role="alert"></p>
+            <button class="btn btn-primary" type="submit"><i data-lucide="key-round" class="icon"></i><span>获取 2FA 验证码</span></button>
+          </form>
+          <div id="totp-result" class="public-tool-result hidden" aria-live="polite"></div>
         </div>
       </section>
     </section>
   </main>
-  <footer class="public-foot">查询结果不会被浏览器或代理缓存。请勿向无关人员透露查询密钥与验证码。</footer>
+
+  <footer class="public-foot">邮件仅保留 7 天，不加载远程图片，不提供发送、删除或其他远端写操作。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260809-9"></script>
+  <script src="/assets/query.js?v=20260809-10"></script>
 </body>
 </html>

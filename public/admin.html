@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>管理中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-7">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260809-8">
 </head>
 <body>
   <div class="admin-shell">
@@ -32,7 +32,7 @@
           <div class="panel"><div class="panel-head"><h3>最近审计</h3></div><div id="audit-table" class="table-wrap"></div></div>
         </section>
         <section id="mailboxes" class="section">
-          <div class="section-head"><div><h2>母邮箱</h2><p>统一管理 iCloud、Gmail 和 Outlook 邮箱，IMAP 参数由服务器安全预设。</p></div><button id="add-account" class="btn btn-primary"><i data-lucide="plus" class="icon"></i><span>接入母邮箱</span></button></div>
+          <div class="section-head"><div><h2>母邮箱</h2><p>统一管理 iCloud、Gmail 和 Outlook 邮箱，IMAP 参数由服务器安全预设。</p></div><div class="head-actions"><button id="import-accounts" class="btn btn-secondary"><i data-lucide="file-up" class="icon"></i><span>批量接入（最多 100 个）</span></button><button id="add-account" class="btn btn-primary"><i data-lucide="plus" class="icon"></i><span>接入母邮箱</span></button></div></div>
           <div class="panel"><div id="accounts-table" class="table-wrap"></div></div>
         </section>
         <section id="aliases" class="section">
@@ -46,10 +46,13 @@
           <div class="panel"><div id="totp-entries-table" class="table-wrap"></div></div>
         </section>
         <section id="messages" class="section">
-          <div class="section-head"><div><h2>收信记录</h2><p>保留必要元数据、短期验证码和最近 7 天的加密纯文本正文。</p></div></div>
-          <div class="list-toolbar"><div class="field search-field"><label class="sr-only" for="message-search">搜索收信记录</label><i data-lucide="search" class="icon"></i><input id="message-search" type="search" placeholder="搜索邮箱、发件人或主题"></div><span id="message-count" class="muted"></span></div>
-          <div class="panel"><div class="panel-head"><h3>已归类邮件</h3></div><div id="messages-table" class="table-wrap"></div></div>
-          <div class="panel"><div class="panel-head"><h3>未匹配邮箱</h3></div><div id="unmatched-table" class="table-wrap"></div></div>
+          <div class="section-head"><div><h2>聚合收件箱</h2><p>管理端统一查看最近 7 天的纯文本邮件，正文仅在点击后解密。</p></div><button id="refresh-inbox" class="btn btn-secondary"><i data-lucide="refresh-cw" class="icon"></i><span>刷新</span></button></div>
+          <div class="inbox-toolbar"><div class="field search-field"><label class="sr-only" for="message-search">搜索邮件</label><i data-lucide="search" class="icon"></i><input id="message-search" type="search" placeholder="搜索发件人、主题或收件邮箱"></div><label class="compact-check"><input id="message-code-only" type="checkbox"><span>只看验证码</span></label></div>
+          <div class="inbox-shell">
+            <aside class="inbox-mailboxes"><button class="mailbox-filter active" type="button" data-inbox-account=""><i data-lucide="mails" class="icon"></i><span>全部邮件</span></button><div id="mailbox-tree" class="mailbox-tree"></div><button id="load-more-mailboxes" class="btn btn-secondary btn-block hidden" type="button">加载更多邮箱</button></aside>
+            <section class="inbox-list"><div id="inbox-message-list" class="inbox-message-list"><div class="empty">正在加载邮件</div></div><button id="load-more-messages" class="btn btn-secondary btn-block hidden" type="button">加载更多邮件</button></section>
+            <article id="inbox-message-detail" class="inbox-detail"><div class="inbox-detail-empty"><i data-lucide="mail-open" class="icon"></i><strong>选择一封邮件</strong><span>邮件正文将在这里按需加载</span></div></article>
+          </div>
         </section>
         <section id="security" class="section">
           <div class="section-head"><div><h2>安全设置</h2><p>这里的 TOTP 仅保护管理员登录，与邮箱第三方平台 2FA 分开。</p></div></div>
@@ -64,6 +67,6 @@
   <div id="modal-root"></div>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/admin.js?v=20260809-8"></script>
+  <script src="/assets/admin.js?v=20260809-9"></script>
 </body>
 </html>
