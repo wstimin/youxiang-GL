@@ -46,6 +46,9 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.match(listRoute, /verificationModeEnabled\(\)/);
   assert.match(listRoute, /mode: 'code'/);
   assert.match(listRoute, /expires_at > NOW\(\) AND code_encrypted IS NOT NULL/);
+  const codeModeRoute = listRoute.slice(listRoute.indexOf('if (await verificationModeEnabled())'), listRoute.indexOf('const page ='));
+  assert.match(codeModeRoute, /code: decrypt\(row\.code_encrypted\)/);
+  assert.doesNotMatch(codeModeRoute, /mailMessageResponse|body:|bodyPreview/);
   assert.match(listRoute, /mode: 'text'/);
   assert.match(listRoute, /WHERE alias_id = \$1 AND mail_expires_at > NOW\(\)/);
   assert.match(listRoute, /LIMIT \$2 OFFSET \$3/);

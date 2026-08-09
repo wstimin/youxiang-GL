@@ -329,11 +329,22 @@ app.post('/api/query', async (req, res, next) => {
         [alias.id]
       );
       await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=code' });
+      const row = messageResult.rows[0];
       return res.json({
         mode: 'code',
         alias: maskEmail(alias.address),
         label: alias.label,
-        message: messageResult.rowCount ? mailMessageResponse(messageResult.rows[0]) : null
+        message: row ? {
+          id: row.id,
+          sender: row.sender,
+          subject: row.subject,
+          code: decrypt(row.code_encrypted),
+          codeMasked: row.code_masked,
+          confidence: row.confidence,
+          receivedAt: row.received_at,
+          expiresAt: row.expires_at,
+          mailExpiresAt: row.mail_expires_at
+        } : null
       });
     }
     const page = Math.max(1, Math.min(1000000, Number.parseInt(req.body.page, 10) || 1));
