@@ -81,6 +81,8 @@ test('public inbox is three-column, cursor-paged, and hides commercial account s
   assert.match(publicQuery, /new IntersectionObserver/);
   assert.match(publicQuery, /cursor: reset \? null : mailState\.cursor/);
   assert.match(publicQuery, /request\('\/api\/query\/message'/);
+  assert.match(publicQuery, /mailState\.token/);
+  assert.match(publicQuery, /mailboxHealthDot/);
   assert.doesNotMatch(listRoute, /body_text_encrypted/);
   assert.match(detailRoute, /body_text_encrypted/);
   assert.doesNotMatch(publicSurface, /母邮箱|子邮箱|归属邮箱|邮箱树|服务商|IMAP|mailAccountId|mail_account_id|provider|import job|同步状态|登录失败|网络超时/);

@@ -209,6 +209,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 | `MAIL_RETENTION_DAYS` | `7` | 已归属子邮箱邮件和加密正文保留天数 |
 | `MAIL_PAGE_SIZE` | `20` | 单个密钥查询每页返回的邮件数量，最大 50 |
 | `IMAP_POLL_SECONDS` | `15` | Worker 收信轮询间隔 |
+| `PUBLIC_MAIL_REFRESH_SECONDS` | `60` | 查询页面检查新邮件和邮箱状态的间隔秒数，范围 30-300 |
 | `MAX_MESSAGE_BYTES` | `1048576` | 单封邮件最多读取字节数，防止大附件占用内存 |
 | `MAX_BODY_CHARS` | `200000` | 单封邮件最多保存的纯文本正文字符数 |
 | `SESSION_HOURS` | `12` | 管理员登录会话时长 |

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-11">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260809-13">
 </head>
 <body class="public-shell">
   <header class="public-head">
@@ -73,29 +73,34 @@
       <aside class="public-inbox-nav">
         <div class="public-session">
           <span class="public-session-icon"><i data-lucide="shield-check"></i></span>
-          <div><strong>安全收件箱</strong><small>当前为只读访问</small></div>
+          <div><strong id="mailbox-address">授权邮箱</strong><small id="mailbox-state">正在验证访问范围</small></div>
         </div>
 
         <nav class="public-nav" aria-label="功能导航">
-          <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>全部邮件</span></button>
-          <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>验证码邮件</span></button>
-          <button type="button" data-public-view="batch"><i data-lucide="list-checks" class="icon"></i><span>批量查码</span></button>
-          <button type="button" data-public-view="totp"><i data-lucide="fingerprint" class="icon"></i><span>2FA 工具</span></button>
+          <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span class="public-nav-label">全部邮件</span><span id="mail-total-count" class="public-nav-count">0</span></button>
+          <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span class="public-nav-label">验证码邮件</span><span id="mail-code-count" class="public-nav-count">0</span></button>
+          <button type="button" data-public-view="batch"><i data-lucide="list-checks" class="icon"></i><span class="public-nav-label">批量查码</span></button>
+          <button type="button" data-public-view="totp"><i data-lucide="fingerprint" class="icon"></i><span class="public-nav-label">2FA 工具</span></button>
         </nav>
 
         <div class="public-nav-foot">
+          <div class="public-mailbox-health">
+            <span id="mailbox-health-dot" class="public-health-dot"></span>
+            <div><strong id="mailbox-health-label">正在连接</strong><small id="mailbox-last-sync">等待首次更新</small></div>
+          </div>
           <button id="change-key" class="public-quiet-button" type="button"><i data-lucide="log-out" class="icon"></i><span>更换查询密钥</span></button>
         </div>
       </aside>
 
       <section id="mail-list-pane" class="public-message-pane">
         <header class="public-pane-head">
-          <div><span class="pane-kicker">INBOX</span><h1 id="mail-list-title">全部邮件</h1></div>
+          <div class="public-pane-title"><span class="pane-kicker">INBOX</span><h1 id="mail-list-title">全部邮件</h1><small id="mail-last-refresh">尚未更新</small></div>
           <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
         </header>
+        <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新邮件，点击查看</span></button>
         <div class="public-search">
           <i data-lucide="search" class="icon"></i>
-          <input id="mail-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人或主题">
+          <input id="mail-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人、主题或摘要">
           <button id="clear-mail-search" class="hidden" type="button" title="清除搜索" aria-label="清除搜索"><i data-lucide="x"></i></button>
         </div>
         <p id="mail-list-status" class="public-list-status" role="status"></p>
@@ -149,6 +154,6 @@
   <footer class="public-foot">邮件仅保留 7 天，不加载远程图片，不提供发送、删除或其他远端写操作。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260809-11"></script>
+  <script src="/assets/query.js?v=20260809-13"></script>
 </body>
 </html>

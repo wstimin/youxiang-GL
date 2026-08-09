@@ -16,6 +16,15 @@ const mailLoadMoreButton = document.querySelector('#mail-load-more');
 const mailLoadSentinel = document.querySelector('#mail-load-sentinel');
 const mailDetail = document.querySelector('#mail-detail');
 const refreshMailButton = document.querySelector('#refresh-mail');
+const newMailBanner = document.querySelector('#new-mail-banner');
+const mailboxAddress = document.querySelector('#mailbox-address');
+const mailboxState = document.querySelector('#mailbox-state');
+const mailboxHealthDot = document.querySelector('#mailbox-health-dot');
+const mailboxHealthLabel = document.querySelector('#mailbox-health-label');
+const mailboxLastSync = document.querySelector('#mailbox-last-sync');
+const mailTotalCount = document.querySelector('#mail-total-count');
+const mailCodeCount = document.querySelector('#mail-code-count');
+const mailLastRefresh = document.querySelector('#mail-last-refresh');
 const changeKeyButton = document.querySelector('#change-key');
 const batchView = document.querySelector('#batch-view');
 const mailBatchForm = document.querySelector('#mail-batch-form');
@@ -40,9 +49,14 @@ const mailState = {
   cursor: null,
   loading: false,
   selectedId: null,
+  mode: 'text',
+  latestId: null,
+  lastRefreshAt: null,
   requestId: 0
 };
 let mailSearchTimer;
+let mailRefreshTimer;
+let mailRefreshInFlight = false;
 let mailBatchRefreshTimer;
 let activeMailBatchTokens = [];
 let mailBatchRefreshInFlight = false;
@@ -91,6 +105,82 @@ function formatMailDate(value, detailed = false) {
     : { month: '2-digit', day: '2-digit' });
 }
 
+function formatSyncLabel(value) {
+  if (!value) return '等待首次更新';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '更新时间未知';
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return '刚刚更新';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前更新`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前更新`;
+  return `${Math.floor(seconds / 86400)} 天前更新`;
+}
+
+function updateMailbox(data) {
+  const mailbox = data?.mailbox;
+  if (!mailbox) return;
+  const stateLabels = { ready: '已连接，只读访问', updating: '正在同步邮件', delayed: '同步稍有延迟', paused: '邮箱已暂停' };
+  const healthLabels = { ready: '已连接', updating: '正在同步', delayed: '同步延迟', paused: '已暂停' };
+  mailboxAddress.textContent = mailbox.address || '授权邮箱';
+  mailboxState.textContent = stateLabels[mailbox.state] || '只读访问';
+  mailboxHealthLabel.textContent = healthLabels[mailbox.state] || '只读访问';
+  mailboxLastSync.textContent = formatSyncLabel(mailbox.lastSyncedAt);
+  mailboxHealthDot.dataset.state = mailbox.state || 'updating';
+  mailTotalCount.textContent = String(mailbox.totalMessages ?? 0);
+  mailCodeCount.textContent = String(mailbox.activeCodes ?? 0);
+  inboxWorkspace.dataset.mailboxState = mailbox.state || 'updating';
+}
+
+function setRefreshLabel() {
+  mailLastRefresh.textContent = mailState.lastRefreshAt
+    ? formatSyncLabel(mailState.lastRefreshAt)
+    : '尚未更新';
+}
+
+function scheduleMailRefresh(seconds = 60) {
+  clearTimeout(mailRefreshTimer);
+  if (!mailState.token) return;
+  mailRefreshTimer = setTimeout(() => pollForNewMail(seconds), Math.max(30, seconds) * 1000);
+}
+
+async function pollForNewMail(refreshSeconds = 60) {
+  if (mailRefreshInFlight || !mailState.token || inboxWorkspace.dataset.view !== 'mail') {
+    scheduleMailRefresh(refreshSeconds);
+    return;
+  }
+  mailRefreshInFlight = true;
+  const token = mailState.token;
+  const requestId = mailState.requestId;
+  try {
+    const data = await request('/api/query', {
+      token,
+      cursor: null,
+      limit: 1,
+      keyword: mailState.keyword,
+      status: mailState.filter === 'code' ? 'code' : ''
+    });
+    if (token !== mailState.token || requestId !== mailState.requestId || inboxWorkspace.dataset.view !== 'mail') return;
+    updateMailbox(data);
+    const latestId = Number(data.messages?.[0]?.id || 0) || null;
+    if (mailState.latestId && latestId && latestId !== mailState.latestId) {
+      if (data.mode === 'code') {
+        await loadMessages({ reset: true });
+      } else {
+        newMailBanner.classList.remove('hidden');
+        renderIcons();
+      }
+    }
+    scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || refreshSeconds));
+  } catch (error) {
+    if (token === mailState.token && requestId === mailState.requestId) {
+      mailListStatus.textContent = error.message;
+      scheduleMailRefresh(refreshSeconds);
+    }
+  } finally {
+    mailRefreshInFlight = false;
+  }
+}
+
 function setPublicView(view) {
   mailListPane.classList.toggle('hidden', view !== 'mail');
   mailDetail.classList.toggle('hidden', view !== 'mail');
@@ -104,6 +194,8 @@ function setPublicView(view) {
   if (view === 'batch' && activeMailBatchTokens.length && mailBatchResultBox.innerHTML) {
     mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), 15000);
   }
+  if (view === 'mail') scheduleMailRefresh();
+  else clearTimeout(mailRefreshTimer);
 }
 
 function resetMailDetail() {
@@ -129,6 +221,18 @@ function bindMessageItems(messages) {
   }
 }
 
+function renderCodeMessage(message) {
+  if (!message) {
+    mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="badge-check"></i></span><strong>暂无有效验证码</strong><span>收到新邮件后，页面会自动刷新。</span></div>';
+    renderIcons();
+    return;
+  }
+  mailDetail.innerHTML = `<div class="public-code-result"><span class="pane-kicker">LATEST VERIFICATION CODE</span><strong class="public-code-result-value">${escapeHtml(message.code || message.codeMasked || '------')}</strong><span>${escapeHtml(message.sender || '未知发件人')} · ${escapeHtml(formatMailDate(message.receivedAt, true))}</span><button class="btn btn-secondary" type="button" data-copy-code-mode><i data-lucide="copy" class="icon"></i><span>复制验证码</span></button></div>`;
+  const copyButton = mailDetail.querySelector('[data-copy-code-mode]');
+  if (copyButton && message.code) copyButton.addEventListener('click', () => copyCode(message.code, '验证码已复制'));
+  renderIcons();
+}
+
 function updateMailListState(loadedCount) {
   mailListEmpty.classList.toggle('hidden', mailMessageList.children.length > 0 || mailState.loading);
   mailLoadMoreButton.classList.toggle('hidden', !mailState.cursor || mailState.loading);
@@ -142,6 +246,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
   if (!reset && !mailState.cursor) return false;
   mailState.loading = true;
   const requestId = ++mailState.requestId;
+  const token = mailState.token;
   if (reset) {
     mailState.cursor = null;
     mailMessageList.replaceChildren();
@@ -151,7 +256,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
   updateMailListState(0);
   try {
     const data = await request('/api/query', {
-      token: mailState.token,
+      token,
       cursor: reset ? null : mailState.cursor,
       limit: 40,
       keyword: mailState.keyword,
@@ -159,9 +264,22 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     });
     if (requestId !== mailState.requestId) return false;
     const messages = Array.isArray(data.messages) ? data.messages : [];
-    mailMessageList.insertAdjacentHTML('beforeend', messages.map(renderMessageItem).join(''));
-    bindMessageItems(messages);
-    mailState.cursor = data.nextCursor || null;
+    mailState.mode = data.mode || 'text';
+    updateMailbox(data);
+    const displayMessages = mailState.mode === 'code'
+      ? messages.map((message) => ({ ...message, bodyPreview: `验证码 ${message.code || message.codeMasked || '------'}` }))
+      : messages;
+    mailMessageList.insertAdjacentHTML('beforeend', displayMessages.map(renderMessageItem).join(''));
+    bindMessageItems(displayMessages);
+    mailState.cursor = mailState.mode === 'code' ? null : (data.nextCursor || null);
+    if (mailState.mode === 'code') renderCodeMessage(data.message || displayMessages[0] || null);
+    if (reset) {
+      mailState.latestId = Number(messages[0]?.id || 0) || null;
+      newMailBanner.classList.add('hidden');
+    }
+    mailState.lastRefreshAt = new Date().toISOString();
+    setRefreshLabel();
+    scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || 60));
     if (unlock) {
       accessView.classList.add('hidden');
       inboxWorkspace.classList.remove('hidden');
@@ -170,7 +288,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     renderIcons();
     return true;
   } catch (error) {
-    if (unlock) mailState.token = '';
+    if (unlock && requestId === mailState.requestId) mailState.token = '';
     throw error;
   } finally {
     if (requestId === mailState.requestId) {
@@ -181,9 +299,19 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
   }
 }
 
+newMailBanner.addEventListener('click', async () => {
+  newMailBanner.classList.add('hidden');
+  try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+});
+
 async function openMailMessage(message, button) {
   mailState.selectedId = Number(message.id);
   mailMessageList.querySelectorAll('.public-message-item').forEach((item) => item.classList.toggle('active', item === button));
+  if (mailState.mode === 'code') {
+    mailDetail.classList.add('mobile-visible');
+    renderCodeMessage(message);
+    return;
+  }
   mailDetail.classList.add('mobile-visible');
   mailDetail.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
   try {
@@ -384,20 +512,29 @@ mailForm.addEventListener('submit', async (event) => {
 });
 
 changeKeyButton.addEventListener('click', () => {
+  clearTimeout(mailRefreshTimer);
   mailState.token = '';
   mailState.cursor = null;
   mailState.keyword = '';
   mailState.filter = 'all';
+  mailState.mode = 'text';
+  mailState.latestId = null;
+  mailState.lastRefreshAt = null;
+  mailState.loading = false;
   mailState.requestId += 1;
   mailSearchInput.value = '';
   mailMessageList.replaceChildren();
+  resetMailDetail();
   inboxWorkspace.classList.add('hidden');
   accessView.classList.remove('hidden');
   mailTokenInput.focus();
 });
 
 refreshMailButton.addEventListener('click', async () => {
-  try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+  try {
+    newMailBanner.classList.add('hidden');
+    await loadMessages({ reset: true });
+  } catch (error) { mailListStatus.textContent = error.message; }
 });
 
 mailLoadMoreButton.addEventListener('click', async () => {

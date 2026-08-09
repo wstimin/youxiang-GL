@@ -23,6 +23,8 @@ const queryFailureLimit = Number(process.env.QUERY_FAILURE_LIMIT_PER_15_MINUTES 
 const mailPageSize = Math.max(1, Math.min(50, Number(process.env.MAIL_PAGE_SIZE || 20)));
 const loginFailureLimit = Number(process.env.LOGIN_FAILURE_LIMIT_PER_15_MINUTES || 5);
 const workerFreshSeconds = Math.max(90, Number(process.env.IMAP_POLL_SECONDS || 15) * 4);
+const mailRetentionDays = Math.max(1, Math.min(30, Number(process.env.MAIL_RETENTION_DAYS || 7)));
+const publicRefreshSeconds = Math.max(30, Math.min(300, Number(process.env.PUBLIC_MAIL_REFRESH_SECONDS || 60)));
 const adminAllowedIps = new Set(String(process.env.ADMIN_ALLOWED_IPS || '')
   .split(',').map((item) => item.trim()).filter(Boolean));
 const rateBuckets = new Map();
@@ -189,12 +191,34 @@ async function failureGuard(action, ip, max, windowMinutes = 15) {
 async function findPublicAlias(token) {
   if (token.length < 20 || token.length > 200) return null;
   const result = await pool.query(
-    `SELECT id FROM aliases
-     WHERE token_digest = $1 AND enabled = TRUE
-       AND (token_expires_at IS NULL OR token_expires_at > NOW())`,
+    `SELECT a.id, a.address, a.token_expires_at,
+            ma.enabled AS account_enabled, ma.status AS account_status,
+            ma.last_synced_at
+     FROM aliases a
+     JOIN mail_accounts ma ON ma.id = a.mail_account_id
+     WHERE a.token_digest = $1 AND a.enabled = TRUE
+       AND (a.token_expires_at IS NULL OR a.token_expires_at > NOW())`,
     [digest(token)]
   );
   return result.rows[0] || null;
+}
+
+function publicMailboxResponse(alias, stats, runtime) {
+  let state = 'updating';
+  if (!alias.account_enabled) state = 'paused';
+  else if (!runtime?.fresh) state = 'delayed';
+  else if (alias.account_status === 'connected') state = 'ready';
+  else if (alias.account_status === 'error') state = 'delayed';
+  return {
+    address: maskEmail(alias.address),
+    state,
+    lastSyncedAt: alias.last_synced_at,
+    lastMessageAt: stats.latest_received_at,
+    totalMessages: stats.total_count,
+    activeCodes: stats.code_count,
+    retentionDays: mailRetentionDays,
+    refreshAfterSeconds: publicRefreshSeconds
+  };
 }
 
 async function verificationModeEnabled() {
@@ -433,22 +457,84 @@ app.post('/api/query', async (req, res, next) => {
     const codeOnly = String(req.body.status || '') === 'code';
     const cursor = parsePublicCursor(req.body.cursor);
     if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
-    const messageResult = await pool.query(
+    const codeMode = await verificationModeEnabled();
+    if (codeMode) {
+      const [latestResult, statsResult, runtimeResult] = await Promise.all([
+        pool.query(
+          `SELECT id, sender, subject, body_preview, code_encrypted, code_masked,
+                  confidence, code_expires_at, received_at
+           FROM mail_messages
+           WHERE alias_id = $1 AND mail_expires_at > NOW()
+             AND code_encrypted IS NOT NULL AND code_expires_at > NOW()
+           ORDER BY received_at DESC, id DESC LIMIT 1`,
+          [alias.id]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS total_count,
+                  COUNT(*) FILTER (
+                    WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
+                  )::int AS code_count,
+                  MAX(received_at) AS latest_received_at
+           FROM mail_messages
+           WHERE alias_id = $1 AND mail_expires_at > NOW()`,
+          [alias.id]
+        ),
+        pool.query(
+          `SELECT status,
+                  heartbeat_at > NOW() - ($1::text || ' seconds')::interval AS fresh
+           FROM runtime_status
+           WHERE service = 'worker'`,
+          [String(workerFreshSeconds)]
+        )
+      ]);
+      const row = latestResult.rows[0];
+      const message = row ? publicMailMessageResponse(row) : null;
+      if (message) {
+        message.code = decrypt(row.code_encrypted);
+        message.codeExpiresAt = row.code_expires_at;
+      }
+      await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=code' });
+      return res.json({
+        mode: 'code',
+        mailbox: publicMailboxResponse(alias, statsResult.rows[0], runtimeResult.rows[0]),
+        message,
+        messages: message ? [message] : [],
+        nextCursor: null
+      });
+    }
+    const [messageResult, statsResult, runtimeResult] = await Promise.all([pool.query(
       `SELECT id, sender, subject, body_preview, code_encrypted, code_masked,
               confidence, code_expires_at, received_at
        FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()
-         AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%')
+         AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
+              OR body_preview ILIKE '%' || $2 || '%')
          AND ($3::boolean = FALSE OR (code_encrypted IS NOT NULL AND code_expires_at > NOW()))
          AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
        ORDER BY received_at DESC, id DESC LIMIT $6`,
       [alias.id, keyword, codeOnly, cursor.receivedAt, cursor.id, limit + 1]
-    );
+    ), pool.query(
+      `SELECT COUNT(*)::int AS total_count,
+              COUNT(*) FILTER (
+                WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
+              )::int AS code_count,
+              MAX(received_at) AS latest_received_at
+       FROM mail_messages
+       WHERE alias_id = $1 AND mail_expires_at > NOW()`,
+      [alias.id]
+    ), pool.query(
+      `SELECT status,
+              heartbeat_at > NOW() - ($1::text || ' seconds')::interval AS fresh
+       FROM runtime_status
+       WHERE service = 'worker'`,
+      [String(workerFreshSeconds)]
+    )]);
     await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=text' });
     const messages = messageResult.rows.slice(0, limit).map(publicMailMessageResponse);
     const hasMore = messageResult.rows.length > limit;
     return res.json({
       mode: 'text',
+      mailbox: publicMailboxResponse(alias, statsResult.rows[0], runtimeResult.rows[0]),
       messages,
       nextCursor: hasMore ? makePublicCursor(messageResult.rows[limit - 1]) : null
     });
@@ -471,6 +557,10 @@ app.post('/api/query/message', async (req, res, next) => {
     }
     const alias = await findPublicAlias(token);
     if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
+    if (await verificationModeEnabled()) {
+      await audit({ actor: `alias:${alias.id}`, action: 'query_message_blocked', target: String(messageId), ip, detail: 'verification mode' });
+      return res.status(403).json({ error: '当前查询模式仅允许查看最新有效验证码' });
+    }
     const result = await pool.query(
       `SELECT id, sender, subject, body_text_encrypted,
               body_preview, code_encrypted, code_masked, confidence,
