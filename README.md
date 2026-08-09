@@ -220,7 +220,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 GitHub Actions 工作流位于 `.github/workflows/container.yml`。推送到 `main` 后会自动执行语法检查和测试，并构建 `linux/amd64`、`linux/arm64` 两种架构的镜像：
 
 ```text
-ghcr.io/wstimin/youxiang-GL:latest
+ghcr.io/wstimin/youxiang-gl:latest
 ```
 
 推送 `v*` 格式的 Git 标签时还会生成对应版本标签；每次构建也会生成 `sha-*` 标签。Pull Request 只测试和构建，不发布镜像。

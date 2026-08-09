@@ -2,6 +2,7 @@
 set -eu
 
 REPOSITORY="wstimin/youxiang-GL"
+IMAGE_REPOSITORY="wstimin/youxiang-gl"
 BRANCH="main"
 INSTALL_DIR="${INSTALL_DIR:-/opt/icloud-hq}"
 RAW_BASE="https://raw.githubusercontent.com/${REPOSITORY}/${BRANCH}"
@@ -116,7 +117,7 @@ TOKEN_PEPPER_HEX=$(openssl rand -hex 32)
 POSTGRES_DB=codevault
 POSTGRES_USER=codevault
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
-APP_IMAGE=ghcr.io/${REPOSITORY}:latest
+APP_IMAGE=ghcr.io/${IMAGE_REPOSITORY}:latest
 SESSION_HOURS=12
 CODE_TTL_MINUTES=10
 IMAP_POLL_SECONDS=15
@@ -138,9 +139,9 @@ EOF
 
 deploy() {
   cd "$INSTALL_DIR"
-  rollback_image="ghcr.io/${REPOSITORY}:rollback"
+  rollback_image="ghcr.io/${IMAGE_REPOSITORY}:rollback"
   current_image="$(sed -n 's/^APP_IMAGE=//p' .env)"
-  [ -n "$current_image" ] || current_image="ghcr.io/${REPOSITORY}:latest"
+  [ -n "$current_image" ] || current_image="ghcr.io/${IMAGE_REPOSITORY}:latest"
 
   if docker compose -f "$COMPOSE_FILE" ps --status running db 2>/dev/null | grep -q db; then
     say "Creating a pre-update database backup..."
