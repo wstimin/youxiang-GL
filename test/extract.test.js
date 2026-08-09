@@ -30,3 +30,11 @@ test('matches an alias in raw headers', () => {
   const aliases = [{ id: 1, address: 'private-alias@example.com' }];
   assert.equal(findAlias('X-Original-To: private-alias@example.com', aliases).id, 1);
 });
+
+test('does not assign mail to an alias that is only an address substring', () => {
+  const aliases = [
+    { id: 1, address: 'a@example.com' },
+    { id: 2, address: 'ba@example.com' }
+  ];
+  assert.equal(findAlias('Delivered-To: ba@example.com', aliases).id, 2);
+});

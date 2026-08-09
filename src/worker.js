@@ -3,11 +3,13 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const { pool, initDatabase, decrypt, encrypt, cleanExpired, updateRuntimeStatus } = require('./lib');
-const { extractCode, findAlias } = require('./extract');
+const { extractCode, findAlias, normalizeText } = require('./extract');
 
 const pollSeconds = Math.max(5, Number(process.env.IMAP_POLL_SECONDS || 15));
 const codeTtlMinutes = Math.max(1, Math.min(60, Number(process.env.CODE_TTL_MINUTES || 10)));
 const maxMessageBytes = Math.max(64 * 1024, Number(process.env.MAX_MESSAGE_BYTES || 1024 * 1024));
+const mailRetentionDays = Math.max(1, Math.min(30, Number(process.env.MAIL_RETENTION_DAYS || 7)));
+const maxBodyChars = Math.max(1000, Math.min(500000, Number(process.env.MAX_BODY_CHARS || 200000)));
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -26,7 +28,7 @@ function headerText(source) {
 async function processMessage(account, message, aliases) {
   if (!message.source) return;
   const parsed = await simpleParser(message.source, {
-    skipHtmlToText: true,
+    skipHtmlToText: false,
     skipTextToHtml: true,
     maxHtmlLengthToParse: 200000
   });
@@ -36,6 +38,7 @@ async function processMessage(account, message, aliases) {
   const receivedAt = parsed.date instanceof Date ? parsed.date : new Date();
   const sender = senderText(parsed).slice(0, 500);
   const subject = String(parsed.subject || '').slice(0, 500);
+  const bodyText = String(parsed.text || normalizeText(parsed.html) || '').slice(0, maxBodyChars);
 
   if (!alias) {
     await pool.query(
@@ -49,12 +52,23 @@ async function processMessage(account, message, aliases) {
 
   const extracted = extractCode(subject, parsed.text, parsed.html);
   const expiresAt = new Date(receivedAt.getTime() + codeTtlMinutes * 60 * 1000);
+  const mailExpiresAt = new Date(receivedAt.getTime() + mailRetentionDays * 24 * 60 * 60 * 1000);
   await pool.query(
     `INSERT INTO verification_messages(
        mail_account_id, alias_id, message_key, sender, subject, code_encrypted,
-       code_masked, confidence, received_at, expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     ON CONFLICT (mail_account_id, message_key) DO NOTHING`,
+       code_masked, confidence, body_text_encrypted, received_at, expires_at, mail_expires_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     ON CONFLICT (mail_account_id, message_key) DO UPDATE SET
+       alias_id = EXCLUDED.alias_id,
+       sender = EXCLUDED.sender,
+       subject = EXCLUDED.subject,
+       code_encrypted = EXCLUDED.code_encrypted,
+       code_masked = EXCLUDED.code_masked,
+       confidence = EXCLUDED.confidence,
+       body_text_encrypted = EXCLUDED.body_text_encrypted,
+       received_at = EXCLUDED.received_at,
+       expires_at = EXCLUDED.expires_at,
+       mail_expires_at = EXCLUDED.mail_expires_at`,
     [
       account.id,
       alias.id,
@@ -64,8 +78,10 @@ async function processMessage(account, message, aliases) {
       extracted ? encrypt(extracted.code) : null,
       extracted ? `${'*'.repeat(Math.max(0, extracted.code.length - 2))}${extracted.code.slice(-2)}` : null,
       extracted?.confidence || 0,
+      bodyText ? encrypt(bodyText) : null,
       receivedAt,
-      expiresAt
+      expiresAt,
+      mailExpiresAt
     ]
   );
 }
@@ -99,9 +115,9 @@ async function syncAccount(account) {
       const uidNext = Number(client.mailbox.uidNext || 1);
       const firstUid = account.last_uid > 0
         ? Number(account.last_uid) + 1
-        : Math.max(1, uidNext - 100);
+        : uidNext;
+      let highestUid = Number(account.last_uid || 0);
       if (firstUid < uidNext) {
-        let highestUid = Number(account.last_uid || 0);
         for await (const message of client.fetch(`${firstUid}:*`, {
           uid: true,
           source: { start: 0, maxLength: maxMessageBytes }
@@ -109,9 +125,27 @@ async function syncAccount(account) {
           await processMessage(account, message, aliasResult.rows);
           highestUid = Math.max(highestUid, Number(message.uid || 0));
         }
-        if (highestUid > Number(account.last_uid || 0)) {
-          await pool.query('UPDATE mail_accounts SET last_uid = $1 WHERE id = $2', [highestUid, account.id]);
+      }
+      if (!account.body_sync_completed_at) {
+        const since = new Date(Date.now() - mailRetentionDays * 24 * 60 * 60 * 1000);
+        const recentUids = await client.search({ since }, { uid: true });
+        if (recentUids.length) {
+          for await (const message of client.fetch(recentUids, {
+            uid: true,
+            source: { start: 0, maxLength: maxMessageBytes }
+          }, { uid: true })) {
+            await processMessage(account, message, aliasResult.rows);
+            highestUid = Math.max(highestUid, Number(message.uid || 0));
+          }
         }
+      }
+      highestUid = Math.max(highestUid, uidNext - 1);
+      if (highestUid > Number(account.last_uid || 0) || !account.body_sync_completed_at) {
+        await pool.query(
+          `UPDATE mail_accounts SET last_uid = $1,
+           body_sync_completed_at = COALESCE(body_sync_completed_at, NOW()) WHERE id = $2`,
+          [highestUid, account.id]
+        );
       }
     } finally {
       lock.release();

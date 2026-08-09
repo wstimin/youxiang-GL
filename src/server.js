@@ -20,6 +20,7 @@ const queryLimit = Number(process.env.QUERY_LIMIT_PER_10_MINUTES || 30);
 const batchQueryLimit = Number(process.env.BATCH_QUERY_LIMIT_PER_10_MINUTES || 50);
 const loginLimit = Number(process.env.LOGIN_LIMIT_PER_15_MINUTES || 10);
 const queryFailureLimit = Number(process.env.QUERY_FAILURE_LIMIT_PER_15_MINUTES || 8);
+const mailPageSize = Math.max(1, Math.min(50, Number(process.env.MAIL_PAGE_SIZE || 20)));
 const loginFailureLimit = Number(process.env.LOGIN_FAILURE_LIMIT_PER_15_MINUTES || 5);
 const workerFreshSeconds = Math.max(90, Number(process.env.IMAP_POLL_SECONDS || 15) * 4);
 const adminAllowedIps = new Set(String(process.env.ADMIN_ALLOWED_IPS || '')
@@ -114,6 +115,23 @@ async function findPublicAlias(token) {
     [digest(token)]
   );
   return result.rows[0] || null;
+}
+
+function mailMessageResponse(message, includeBody = false) {
+  const codeActive = message.code_encrypted && new Date(message.expires_at).getTime() > Date.now();
+  return {
+    id: message.id,
+    sender: message.sender,
+    subject: message.subject,
+    body: includeBody ? decrypt(message.body_text_encrypted) : null,
+    bodyPreview: message.body_preview || '',
+    code: codeActive ? decrypt(message.code_encrypted) : null,
+    codeMasked: codeActive ? message.code_masked : null,
+    confidence: message.confidence,
+    receivedAt: message.received_at,
+    expiresAt: message.expires_at,
+    mailExpiresAt: message.mail_expires_at
+  };
 }
 
 function totpEntryResponse(entry, secret) {
@@ -293,27 +311,66 @@ app.post('/api/query', async (req, res, next) => {
       await audit({ actor: 'public', action: 'query_failed', ip, detail: 'unknown token' });
       return res.status(401).json({ error: '查询密钥无效或已失效' });
     }
-    const messageResult = await pool.query(
-      `SELECT id, sender, subject, code_encrypted, received_at, expires_at
+    const page = Math.max(1, Math.min(1000000, Number.parseInt(req.body.page, 10) || 1));
+    const pageSize = Math.max(1, Math.min(50, Number.parseInt(req.body.pageSize, 10) || mailPageSize));
+    const offset = (page - 1) * pageSize;
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total
        FROM verification_messages
-       WHERE alias_id = $1 AND expires_at > NOW() AND code_encrypted IS NOT NULL
-       ORDER BY received_at DESC LIMIT 1`,
+       WHERE alias_id = $1 AND mail_expires_at > NOW()`,
       [alias.id]
     );
+    const messageResult = await pool.query(
+      `SELECT id, sender, subject, body_text_encrypted, code_encrypted, code_masked,
+              confidence, received_at, expires_at, mail_expires_at
+       FROM verification_messages
+       WHERE alias_id = $1 AND mail_expires_at > NOW()
+       ORDER BY received_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      [alias.id, pageSize, offset]
+    );
     await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip });
-    const message = messageResult.rows[0] || null;
+    const total = countResult.rows[0]?.total || 0;
+    const messages = messageResult.rows.map((row) => ({
+      ...mailMessageResponse(row),
+      bodyPreview: row.body_text_encrypted ? String(decrypt(row.body_text_encrypted) || '').slice(0, 320) : ''
+    }));
+    const message = messages.find((item) => item.code && new Date(item.expiresAt).getTime() > Date.now()) || null;
     return res.json({
       alias: maskEmail(alias.address),
       label: alias.label,
-      message: message ? {
-        id: message.id,
-        code: decrypt(message.code_encrypted),
-        sender: message.sender,
-        subject: message.subject,
-        receivedAt: message.received_at,
-        expiresAt: message.expires_at
-      } : null
+      message,
+      messages,
+      pagination: { page, pageSize, total, hasMore: offset + messages.length < total }
     });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/query/message', async (req, res, next) => {
+  noStore(res);
+  const ip = extractClientIp(req);
+  const limit = rateLimit(`query-message:${ip}`, queryLimit, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    res.set('Retry-After', String(limit.retryAfter));
+    return res.status(429).json({ error: '请求过于频繁，请稍后重试' });
+  }
+  try {
+    const token = String(req.body.token || '').trim();
+    const messageId = Number.parseInt(req.body.messageId, 10);
+    if (token.length < 20 || token.length > 200 || !Number.isSafeInteger(messageId) || messageId < 1) {
+      return res.status(400).json({ error: '查询参数无效' });
+    }
+    const alias = await findPublicAlias(token);
+    if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
+    const result = await pool.query(
+      `SELECT id, sender, subject, body_text_encrypted, code_encrypted, code_masked,
+              confidence, received_at, expires_at, mail_expires_at
+       FROM verification_messages
+       WHERE id = $1 AND alias_id = $2 AND mail_expires_at > NOW()`,
+      [messageId, alias.id]
+    );
+    if (!result.rowCount) return res.status(404).json({ error: '邮件不存在或已过期' });
+    await audit({ actor: `alias:${alias.id}`, action: 'query_message_success', target: String(messageId), ip });
+    return res.json({ message: mailMessageResponse(result.rows[0], true) });
   } catch (error) { next(error); }
 });
 
@@ -343,12 +400,13 @@ app.post('/api/query/batch', async (req, res, next) => {
     const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
     const matched = searchableDigests.length ? await pool.query(
       `SELECT a.id, a.address, a.label, a.token_digest,
-         v.id AS message_id, v.sender, v.subject, v.code_encrypted, v.received_at, v.expires_at
+         v.id AS message_id, v.sender, v.subject, v.code_encrypted, v.received_at, v.expires_at,
+         v.mail_expires_at
        FROM aliases a
        LEFT JOIN LATERAL (
          SELECT id, sender, subject, code_encrypted, received_at, expires_at
          FROM verification_messages
-         WHERE alias_id = a.id AND expires_at > NOW() AND code_encrypted IS NOT NULL
+         WHERE alias_id = a.id AND mail_expires_at > NOW() AND expires_at > NOW() AND code_encrypted IS NOT NULL
          ORDER BY received_at DESC LIMIT 1
        ) v ON TRUE
        WHERE a.token_digest = ANY($1::text[]) AND a.enabled = TRUE

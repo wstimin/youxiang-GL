@@ -17,10 +17,11 @@ const totpErrorBox = document.querySelector('#totp-query-error');
 const totpResultBox = document.querySelector('#totp-result');
 const toast = document.querySelector('#toast');
 const activeTotps = new Map();
-let mailCountdownTimer;
 let mailBatchRefreshTimer;
 let activeMailBatchTokens = [];
 let mailBatchRefreshInFlight = false;
+let activeMailToken = '';
+let activeMailPage = 1;
 let totpCountdownTimer;
 let totpRefreshInFlight = false;
 
@@ -52,26 +53,80 @@ async function request(url, body) {
 }
 
 function renderAliasMeta(data) {
-  return `<div class="result-meta"><strong>${escapeHtml(data.label || '子邮箱')}</strong><span>${escapeHtml(data.alias)}</span></div>`;
+  return `<div class="result-meta"><strong>${escapeHtml(data.label || '子邮箱')}</strong><span>${escapeHtml(data.alias)} · ${data.pagination.total} 封邮件</span></div>`;
+}
+
+function formatMailDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function mailCodeMarkup(message) {
+  if (!message.code) return '<span class="mail-code-state">无验证码</span>';
+  return `<span class="mail-code"><span>${escapeHtml(message.code)}</span><button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button></span>`;
 }
 
 function renderMail(data) {
-  clearInterval(mailCountdownTimer);
-  const message = data.message;
   mailResultBox.classList.remove('hidden');
-  mailResultBox.innerHTML = `${renderAliasMeta(data)}${message ? `
-    <div class="code-line"><span class="code-value">${escapeHtml(message.code)}</span><button id="copy-mail-code" class="btn btn-secondary btn-icon" title="复制邮箱验证码" aria-label="复制邮箱验证码"><i data-lucide="copy" class="icon"></i></button></div>
-    <div class="result-detail"><span>来源：${escapeHtml(message.sender || '未知发件人')}</span><span>主题：${escapeHtml(message.subject || '无主题')}</span><span id="mail-expires"></span></div>` : '<p class="muted result-empty">当前没有有效的邮箱验证码，请稍后重新查询。</p>'}`;
+  mailResultBox.innerHTML = `${renderAliasMeta(data)}${data.messages.length ? `
+    <div class="mail-list">${data.messages.map((message) => `
+      <article class="mail-item" data-mail-id="${message.id}">
+        <header class="mail-item-head">
+          <div class="mail-item-title"><strong>${escapeHtml(message.subject || '无主题')}</strong><span>${escapeHtml(message.sender || '未知发件人')}</span></div>
+          <time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time>
+        </header>
+        <p class="mail-preview">${escapeHtml(message.bodyPreview || '这封历史邮件没有可显示的正文。')}</p>
+        <footer class="mail-item-foot">${mailCodeMarkup(message)}<button class="btn btn-secondary" type="button" data-open-mail="${message.id}"><i data-lucide="mail-open" class="icon"></i><span>查看正文</span></button></footer>
+        <div class="mail-body-panel hidden" data-mail-body="${message.id}"></div>
+      </article>`).join('')}</div>
+    <div class="mail-pagination">
+      <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page - 1}" ${data.pagination.page <= 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="icon"></i><span>上一页</span></button>
+      <span>第 ${data.pagination.page} 页 · 共 ${data.pagination.total} 封</span>
+      <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page + 1}" ${data.pagination.hasMore ? '' : 'disabled'}><span>下一页</span><i data-lucide="chevron-right" class="icon"></i></button>
+    </div>` : '<p class="muted result-empty">该子邮箱最近 7 天内没有已归属邮件。</p>'}`;
   lucide.createIcons();
-  if (!message) return;
-  document.querySelector('#copy-mail-code').addEventListener('click', () => copyCode(message.code, '邮箱验证码已复制'));
-  const update = () => {
-    const seconds = Math.max(0, Math.floor((new Date(message.expiresAt).getTime() - Date.now()) / 1000));
-    document.querySelector('#mail-expires').textContent = seconds > 0 ? `剩余有效时间：${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒` : '验证码已过期';
-    if (!seconds) clearInterval(mailCountdownTimer);
-  };
-  update();
-  mailCountdownTimer = setInterval(update, 1000);
+  mailResultBox.querySelectorAll('[data-copy-mail-code]').forEach((button) => button.addEventListener('click', () => {
+    const message = data.messages.find((item) => String(item.id) === button.dataset.copyMailCode);
+    if (message?.code) copyCode(message.code, '邮箱验证码已复制');
+  }));
+  mailResultBox.querySelectorAll('[data-open-mail]').forEach((button) => button.addEventListener('click', () => openMailMessage(button)));
+  mailResultBox.querySelectorAll('[data-mail-page]').forEach((button) => button.addEventListener('click', () => queryMailPage(Number(button.dataset.mailPage))));
+}
+
+async function openMailMessage(button) {
+  const messageId = Number(button.dataset.openMail);
+  const panel = mailResultBox.querySelector(`[data-mail-body="${messageId}"]`);
+  if (!panel) return;
+  if (panel.dataset.loaded === 'true') {
+    panel.classList.toggle('hidden');
+    return;
+  }
+  button.disabled = true;
+  try {
+    const data = await request('/api/query/message', { token: activeMailToken, messageId });
+    const body = document.createElement('pre');
+    body.className = 'mail-body';
+    body.textContent = data.message.body || '这封邮件没有可显示的纯文本正文。';
+    panel.replaceChildren(body);
+    panel.dataset.loaded = 'true';
+    panel.classList.remove('hidden');
+  } catch (error) {
+    panel.textContent = error.message;
+    panel.classList.remove('hidden');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function queryMailPage(page) {
+  if (!activeMailToken || page < 1) return;
+  activeMailPage = page;
+  mailErrorBox.textContent = '';
+  try {
+    renderMail(await request('/api/query', { token: activeMailToken, page: activeMailPage, pageSize: 20 }));
+  } catch (error) {
+    mailErrorBox.textContent = error.message;
+  }
 }
 
 function parseBatchTokens() {
@@ -297,8 +352,11 @@ mailForm.addEventListener('submit', async (event) => {
   const button = mailForm.querySelector('[type="submit"]');
   button.disabled = true;
   try {
-    renderMail(await request('/api/query', { token: mailTokenInput.value.trim() }));
+    activeMailToken = mailTokenInput.value.trim();
+    activeMailPage = 1;
+    renderMail(await request('/api/query', { token: activeMailToken, page: activeMailPage, pageSize: 20 }));
   } catch (error) {
+    activeMailToken = '';
     mailErrorBox.textContent = error.message;
   } finally {
     button.disabled = false;

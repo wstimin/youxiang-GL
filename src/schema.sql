@@ -55,12 +55,14 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
   last_error TEXT,
   last_synced_at TIMESTAMPTZ,
   sync_requested_at TIMESTAMPTZ,
+  body_sync_completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS uid_validity TEXT;
 ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS sync_requested_at TIMESTAMPTZ;
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS body_sync_completed_at TIMESTAMPTZ;
 ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'icloud';
 UPDATE mail_accounts SET provider = CASE
   WHEN LOWER(host) = 'imap.gmail.com' THEN 'gmail'
@@ -115,16 +117,27 @@ CREATE TABLE IF NOT EXISTS verification_messages (
   code_encrypted TEXT,
   code_masked TEXT,
   confidence SMALLINT NOT NULL DEFAULT 0,
+  body_text_encrypted TEXT,
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL,
+  mail_expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (mail_account_id, message_key)
 );
+
+ALTER TABLE verification_messages ADD COLUMN IF NOT EXISTS body_text_encrypted TEXT;
+ALTER TABLE verification_messages ADD COLUMN IF NOT EXISTS mail_expires_at TIMESTAMPTZ;
+UPDATE verification_messages
+SET mail_expires_at = COALESCE(received_at, created_at, NOW()) + INTERVAL '7 days'
+WHERE mail_expires_at IS NULL;
+ALTER TABLE verification_messages ALTER COLUMN mail_expires_at SET NOT NULL;
 
 CREATE INDEX IF NOT EXISTS verification_messages_alias_recent_idx
   ON verification_messages(alias_id, received_at DESC);
 CREATE INDEX IF NOT EXISTS verification_messages_expires_idx
   ON verification_messages(expires_at);
+CREATE INDEX IF NOT EXISTS verification_messages_mail_expires_idx
+  ON verification_messages(mail_expires_at);
 
 CREATE TABLE IF NOT EXISTS unmatched_messages (
   id BIGSERIAL PRIMARY KEY,

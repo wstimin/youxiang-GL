@@ -121,11 +121,22 @@ async function audit({ actor, action, target = '', ip = '', detail = '' }) {
 }
 
 async function cleanExpired() {
+  const mailRetentionDays = Math.max(1, Math.min(30, Number(process.env.MAIL_RETENTION_DAYS || 7)));
   const unmatchedRetentionDays = Math.max(1, Math.min(365, Number(process.env.UNMATCHED_RETENTION_DAYS || 14)));
   const auditRetentionDays = Math.max(7, Math.min(3650, Number(process.env.AUDIT_RETENTION_DAYS || 90)));
   await pool.query('DELETE FROM sessions WHERE expires_at < NOW()');
   await pool.query('DELETE FROM login_challenges WHERE expires_at < NOW()');
-  await pool.query('DELETE FROM verification_messages WHERE expires_at < NOW()');
+  await pool.query(
+    `UPDATE verification_messages
+     SET code_encrypted = NULL, code_masked = NULL
+     WHERE expires_at < NOW() AND code_encrypted IS NOT NULL`
+  );
+  await pool.query(
+    `DELETE FROM verification_messages
+     WHERE mail_expires_at < NOW()
+       OR (mail_expires_at IS NULL AND received_at < NOW() - ($1::text || ' days')::interval)`,
+    [String(mailRetentionDays)]
+  );
   await pool.query(
     "DELETE FROM unmatched_messages WHERE created_at < NOW() - ($1::text || ' days')::interval",
     [String(unmatchedRetentionDays)]

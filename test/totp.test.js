@@ -93,14 +93,14 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.match(html, />转换 2FA</);
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.match(html, /class="output-surface totp-output-surface"/);
-  assert.match(html, /styles\.css\?v=20260809-5/);
-  assert.match(html, /vendor\/lucide\.js\?v=20260809-5/);
-  assert.match(html, /query\.js\?v=20260809-5/);
+  assert.match(html, /styles\.css\?v=20260809-6/);
+  assert.match(html, /vendor\/lucide\.js\?v=20260809-6/);
+  assert.match(html, /query\.js\?v=20260809-6/);
   assert.match(html, /id="totp-tab"[\s\S]*?data-lucide="fingerprint"/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
   assert.doesNotMatch(html, /id="totp-token"/);
-  assert.match(script, /request\('\/api\/query', \{ token: mailTokenInput/);
+  assert.match(script, /request\('\/api\/query', \{ token: activeMailToken, page: activeMailPage, pageSize: 20 \}\)/);
   assert.match(script, /request\('\/api\/query\/totp', \{ entries \}\)/);
   assert.match(script, /const activeTotps = new Map\(\)/);
   assert.match(script, /function renderTotpAvatar/);

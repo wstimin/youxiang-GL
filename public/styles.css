@@ -190,6 +190,21 @@ a { color: inherit; }
 .code-value { font: 800 42px/1 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--brand-dark); overflow-wrap: anywhere; }
 .result-detail { display: grid; gap: 8px; color: var(--muted); line-height: 1.5; }
 .result-empty { margin: 22px 0 0; text-align: center; }
+.mail-list { display: grid; gap: 12px; padding-top: 16px; }
+.mail-item { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.mail-item-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.mail-item-title { min-width: 0; display: grid; gap: 5px; }
+.mail-item-title strong, .mail-item-title span { overflow-wrap: anywhere; }
+.mail-item-title span, .mail-item-head time { color: var(--muted); font-size: 12px; }
+.mail-item-head time { flex: 0 0 auto; white-space: nowrap; }
+.mail-preview { margin: 13px 0; color: var(--muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-item-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mail-code { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.mail-code > span { font: 800 20px/1 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--brand-dark); overflow-wrap: anywhere; }
+.mail-code-state { color: var(--muted); font-size: 12px; }
+.mail-body-panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); }
+.mail-body { margin: 0; max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 400 13px/1.7 system-ui, sans-serif; color: var(--text); }
+.mail-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; color: var(--muted); font-size: 12px; }
 .batch-result-meta { padding-bottom: 14px; }
 .batch-result-list { display: grid; padding-top: 8px; }
 .batch-result-row {
@@ -384,6 +399,12 @@ tr:last-child td { border-bottom: 0; }
   .batch-result-action { grid-column: 2; grid-row: 2; }
   .batch-refresh-note { align-items: flex-start; flex-wrap: wrap; }
   .batch-refresh-note .btn { width: 100%; margin-left: 0; }
+  .mail-item-head { display: grid; gap: 7px; }
+  .mail-item-head time { white-space: normal; }
+  .mail-item-foot { align-items: stretch; flex-direction: column; }
+  .mail-item-foot > .btn { width: 100%; }
+  .mail-pagination { flex-wrap: wrap; }
+  .mail-pagination > span { width: 100%; order: -1; text-align: center; }
   .totp-code-value { font-size: 32px; }
   .code-value { font-size: 34px; }
   .admin-shell { display: block; padding-bottom: 70px; }

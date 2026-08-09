@@ -35,7 +35,10 @@ function extractCode(subject, text, html) {
 
 function findAlias(rawHeaders, aliases) {
   const haystack = String(rawHeaders || '').toLowerCase();
-  return aliases.find((alias) => haystack.includes(alias.address.toLowerCase())) || null;
+  return aliases.find((alias) => {
+    const address = String(alias.address || '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9.!#$%&'*+/=?^_{|}~-])${address}(?=$|[^a-z0-9.!#$%&'*+/=?^_{|}~-])`, 'i').test(haystack);
+  }) || null;
 }
 
 module.exports = { extractCode, findAlias, normalizeText };
