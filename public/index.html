@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260810-18">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260810-19">
 </head>
 <body class="public-shell public-app-open">
   <main class="public-main">
@@ -17,7 +17,7 @@
         </div>
 
         <nav class="public-nav" aria-label="功能导航">
-          <button class="active" type="button" data-public-view="mail"><i data-lucide="inbox" class="icon"></i><span class="public-nav-label">单邮箱收件箱</span></button>
+          <button class="active" type="button" data-public-view="mail"><i data-lucide="inbox" class="icon"></i><span class="public-nav-label">邮箱</span></button>
           <button type="button" data-public-view="batch-inbox"><i data-lucide="mails" class="icon"></i><span class="public-nav-label">批量收件箱</span></button>
           <button type="button" data-public-view="batch"><i data-lucide="list-checks" class="icon"></i><span class="public-nav-label">批量查码</span></button>
           <button type="button" data-public-view="totp"><i data-lucide="fingerprint" class="icon"></i><span class="public-nav-label">2FA 工具</span></button>
@@ -32,10 +32,17 @@
         </div>
       </header>
 
-      <section id="mail-view" class="public-page public-mail-page" aria-label="单邮箱收件箱">
+      <section id="mail-view" class="public-page public-mail-page" aria-label="邮箱">
+        <aside class="mail-function-pane" aria-label="邮箱功能">
+          <div class="mail-function-head"><span class="pane-kicker">MAIL</span><h1>邮箱</h1><small>选择查看内容</small></div>
+          <nav class="mail-function-nav" aria-label="邮箱视图">
+            <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>查看收件箱</span><strong id="mail-total-count">0</strong></button>
+            <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>接收验证码</span><strong id="mail-code-count">0</strong></button>
+          </nav>
+        </aside>
         <section id="mail-list-pane" class="public-message-pane">
           <header class="public-pane-head">
-            <div class="public-pane-title"><span class="pane-kicker">SINGLE MAILBOX</span><h1 id="mail-list-title">单邮箱收件箱</h1><small id="mail-last-refresh">尚未更新</small></div>
+            <div class="public-pane-title"><span class="pane-kicker">MAILBOX</span><h1 id="mail-list-title">邮箱</h1><small id="mail-last-refresh">尚未更新</small></div>
             <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
           </header>
           <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新邮件，点击查看</span></button>
@@ -60,10 +67,6 @@
                 <span><i data-lucide="calendar-clock"></i>邮件保留 7 天</span>
               </div>
             </div>
-          </div>
-          <div class="public-mail-mode" role="tablist" aria-label="单邮箱收件箱筛选">
-            <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="mails" class="icon"></i><span>全部邮件</span><strong id="mail-total-count">0</strong></button>
-            <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>验证码</span><strong id="mail-code-count">0</strong></button>
           </div>
           <div class="public-search">
             <i data-lucide="search" class="icon"></i>
@@ -159,6 +162,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260810-18"></script>
+  <script src="/assets/query.js?v=20260810-19"></script>
 </body>
 </html>

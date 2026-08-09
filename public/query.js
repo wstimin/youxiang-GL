@@ -317,6 +317,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     mailMessageList.insertAdjacentHTML('beforeend', displayMessages.map(renderMessageItem).join(''));
     bindMessageItems(displayMessages);
     mailState.cursor = mailState.mode === 'code' ? null : (data.nextCursor || null);
+    if (mailState.mode === 'code') renderCodeMessage(data.message || displayMessages[0] || null);
     if (reset) {
       mailState.latestId = Number(messages[0]?.id || 0) || null;
       newMailBanner.classList.add('hidden');
@@ -674,7 +675,7 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
     }
     const changed = mailState.filter !== filter;
     mailState.filter = filter;
-    mailListTitle.textContent = '单邮箱收件箱';
+    mailListTitle.textContent = '邮箱';
     setPublicView('mail');
     if (changed) {
       try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }

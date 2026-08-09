@@ -79,7 +79,10 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(html, /id="mail-access-panel" class="mail-access-panel"/);
   assert.match(html, /id="mail-access-panel"[\s\S]*?id="mail-query-form"/);
   assert.doesNotMatch(html, /id="access-view"|access-app-bar|access-content|access-mail-preview/);
-  assert.match(html, /单邮箱收件箱/);
+  assert.match(html, /data-mail-filter="all"[\s\S]*?查看收件箱/);
+  assert.match(html, /data-mail-filter="code"[\s\S]*?接收验证码/);
+  assert.match(html, /<h1>邮箱<\/h1>/);
+  assert.match(styles, /\.public-mail-page \{ width: 100%; height: 100%; display: grid; grid-template-columns: 220px minmax\(350px, \.82fr\) minmax\(460px, 1\.18fr\)/);
   assert.match(styles, /\.public-shell\.public-app-open \{ display: block; height: 100vh;/);
   assert.match(styles, /\.public-app \{ width: 100%; height: 100%;/);
   assert.match(styles, /\.mail-access-panel \{ display: none; \}/);
