@@ -419,7 +419,6 @@ totpForm.addEventListener('submit', async (event) => {
     activeTotps.set(String(data.id), { secret, data, receivedAt: Date.now() });
     totpForm.reset();
     renderTotps();
-    showToast('2FA 已转换并同步到管理后台');
   } catch (error) {
     totpErrorBox.textContent = error.message;
   } finally {
