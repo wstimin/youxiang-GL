@@ -60,7 +60,7 @@ test('aggregated inbox pages messages and loads plain text details separately', 
   assert.doesNotMatch(publicQuery, /mailAccountId|mail_account_id|provider|母邮箱|子邮箱|归属邮箱/);
 });
 
-test('public inbox is three-column, cursor-paged, and hides commercial account structure', () => {
+test('public inbox is a full-screen page app, cursor-paged, and hides commercial account structure', () => {
   const html = fs.readFileSync('public/index.html', 'utf8');
   const styles = fs.readFileSync('public/styles.css', 'utf8');
   const listRoute = server.slice(
@@ -73,16 +73,16 @@ test('public inbox is three-column, cursor-paged, and hides commercial account s
   );
   const publicSurface = `${html}\n${publicQuery}\n${listRoute}\n${detailRoute}`;
 
-  assert.match(html, /class="public-inbox-workspace/);
-  assert.match(html, /class="public-inbox-nav"/);
+  assert.match(html, /class="public-app hidden"/);
+  assert.match(html, /class="public-app-bar"/);
   assert.match(html, /单邮箱收件箱/);
-  assert.match(styles, /Full-screen public workbench/);
-  assert.match(styles, /\.public-inbox-nav \{ grid-column: 1 \/ -1; grid-row: 1;/);
+  assert.match(styles, /\.public-shell\.public-app-open \{ display: block; height: 100vh;/);
+  assert.match(styles, /\.public-app \{ width: 100%; height: 100%;/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
-  assert.match(styles, /\.public-inbox-workspace \{ width: 100%; height: calc\(100vh - 76px\)/);
-  assert.match(styles, /\.public-message-pane \{ grid-column: 1; grid-row: 2;/);
-  assert.match(styles, /\.public-message-detail \{ grid-column: 2; grid-row: 2;/);
+  assert.match(styles, /\.public-mail-page \{ width: 100%; height: 100%; display: grid;/);
+  assert.match(styles, /\.public-message-pane \{ min-width: 0; overflow: auto;/);
+  assert.match(styles, /\.public-message-detail \{ min-width: 0; overflow: auto;/);
   assert.match(publicQuery, /new IntersectionObserver/);
   assert.match(publicQuery, /cursor: reset \? null : mailState\.cursor/);
   assert.match(publicQuery, /request\('\/api\/query\/message'/);
@@ -132,5 +132,5 @@ test('batch inbox searches seven-day mail and keeps results grouped by masked ma
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
   assert.match(styles, /\.batch-inbox-group\.expanded \.batch-inbox-chevron/);
-  assert.match(styles, /grid-template-columns: repeat\(5, 1fr\)/);
+  assert.match(styles, /\.public-nav \{ min-width: 0; display: flex;[\s\S]*?overflow-x: auto;/);
 });

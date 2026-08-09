@@ -6,6 +6,7 @@ const mailForm = document.querySelector('#mail-query-form');
 const mailTokenInput = document.querySelector('#mail-token');
 const mailErrorBox = document.querySelector('#mail-query-error');
 const mailListPane = document.querySelector('#mail-list-pane');
+const mailView = document.querySelector('#mail-view');
 const mailListTitle = document.querySelector('#mail-list-title');
 const mailSearchInput = document.querySelector('#mail-search');
 const clearMailSearchButton = document.querySelector('#clear-mail-search');
@@ -203,8 +204,7 @@ async function pollForNewMail(refreshSeconds = 60) {
 }
 
 function setPublicView(view) {
-  mailListPane.classList.toggle('hidden', view !== 'mail');
-  mailDetail.classList.toggle('hidden', view !== 'mail');
+  mailView.classList.toggle('hidden', view !== 'mail');
   batchView.classList.toggle('hidden', view !== 'batch');
   batchInboxView.classList.toggle('hidden', view !== 'batch-inbox');
   totpView.classList.toggle('hidden', view !== 'totp');
@@ -222,6 +222,7 @@ function setPublicView(view) {
 
 function selectAccessMail(filter = 'all') {
   mailState.filter = filter;
+  document.body.classList.remove('public-app-open');
   accessView.classList.remove('hidden');
   inboxWorkspace.classList.add('hidden');
   document.querySelectorAll('[data-access-view]').forEach((button) => {
@@ -231,6 +232,7 @@ function selectAccessMail(filter = 'all') {
 }
 
 function openPublicTool(view) {
+  document.body.classList.add('public-app-open');
   accessView.classList.add('hidden');
   inboxWorkspace.classList.remove('hidden');
   setPublicView(view);
@@ -319,6 +321,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     setRefreshLabel();
     scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || 60));
     if (unlock) {
+      document.body.classList.add('public-app-open');
       accessView.classList.add('hidden');
       inboxWorkspace.classList.remove('hidden');
       setPublicView('mail');
