@@ -16,19 +16,19 @@
     <section class="query-tool" aria-labelledby="query-title">
       <div class="query-heading">
         <span class="eyebrow">SECURE CODE WORKSPACE</span>
-        <h1 id="query-title">实时验证码中心</h1>
-        <p>邮箱邮件查询与独立 2FA 转换</p>
+        <h1 id="query-title">邮件查询</h1>
+        <p>邮件查询与独立 2FA 转换</p>
       </div>
       <div class="query-tabs" role="tablist" aria-label="验证码类型">
-        <button id="mail-tab" class="query-tab active" type="button" role="tab" aria-selected="true" aria-controls="mail-panel" data-query-tab="mail"><span class="tab-icon"><i data-lucide="mail" class="icon"></i></span><span><strong>邮箱邮件</strong><small>验证码或 7 天邮件</small></span></button>
+        <button id="mail-tab" class="query-tab active" type="button" role="tab" aria-selected="true" aria-controls="mail-panel" data-query-tab="mail"><span class="tab-icon"><i data-lucide="mail" class="icon"></i></span><span><strong>获取邮件</strong><small>验证码或 7 天邮件</small></span></button>
         <button id="totp-tab" class="query-tab" type="button" role="tab" aria-selected="false" aria-controls="totp-panel" data-query-tab="totp"><span class="tab-icon"><i data-lucide="fingerprint" class="icon"></i></span><span><strong>2FA 验证码</strong><small>转换动态安全码</small></span></button>
       </div>
 
       <section id="mail-panel" class="query-panel active" role="tabpanel" aria-labelledby="mail-tab">
         <div class="query-workspace">
           <section class="workspace-card input-card">
-            <header class="workspace-card-head"><span class="workspace-icon mail"><i data-lucide="key-round" class="icon"></i></span><div><span class="card-kicker">MAIL LOOKUP</span><h2>输入查询密钥</h2></div></header>
-            <p class="card-copy">单个查询按管理员设置返回最新验证码或最近 7 天邮件；批量查询固定返回最多 50 个邮箱的验证码。</p>
+            <header class="workspace-card-head"><span class="workspace-icon mail"><i data-lucide="key-round" class="icon"></i></span><div><span class="card-kicker">MAIL LOOKUP</span><h2>邮箱查询密钥</h2></div></header>
+            <p class="card-copy">请在下方输入邮件查询密钥。</p>
             <div class="mail-mode-switch" role="group" aria-label="邮箱验证码查询模式">
               <button class="mail-mode-button active" type="button" data-mail-mode="single" aria-pressed="true"><i data-lucide="key-round" class="icon"></i><span>单个查询</span></button>
               <button class="mail-mode-button" type="button" data-mail-mode="batch" aria-pressed="false"><i data-lucide="list-checks" class="icon"></i><span>批量查询</span></button>
@@ -39,7 +39,7 @@
                 <input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="cv_...">
               </div>
               <p id="mail-query-error" class="message" role="alert"></p>
-              <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="search" class="icon"></i><span>查询邮箱邮件</span></button>
+              <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="search" class="icon"></i><span>获取最新邮件</span></button>
             </form>
             <form id="mail-batch-form" class="hidden">
               <div class="field">
