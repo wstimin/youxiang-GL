@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260810-19">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260810-20">
 </head>
 <body class="public-shell public-app-open">
   <main class="public-main">
@@ -33,57 +33,44 @@
       </header>
 
       <section id="mail-view" class="public-page public-mail-page" aria-label="邮箱">
-        <aside class="mail-function-pane" aria-label="邮箱功能">
-          <div class="mail-function-head"><span class="pane-kicker">MAIL</span><h1>邮箱</h1><small>选择查看内容</small></div>
-          <nav class="mail-function-nav" aria-label="邮箱视图">
-            <button class="active" type="button" data-public-view="mail" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>查看收件箱</span><strong id="mail-total-count">0</strong></button>
-            <button type="button" data-public-view="mail" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>接收验证码</span><strong id="mail-code-count">0</strong></button>
-          </nav>
-        </aside>
-        <section id="mail-list-pane" class="public-message-pane">
-          <header class="public-pane-head">
-            <div class="public-pane-title"><span class="pane-kicker">MAILBOX</span><h1 id="mail-list-title">邮箱</h1><small id="mail-last-refresh">尚未更新</small></div>
-            <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
-          </header>
-          <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新邮件，点击查看</span></button>
-          <div id="mail-access-panel" class="mail-access-panel">
-            <div class="access-entry-inner">
-              <div class="access-title-row">
-                <span class="access-icon"><i data-lucide="key-round"></i></span>
-                <div><span class="eyebrow">SECURE ACCESS</span><h1 id="access-title">验证访问密钥</h1></div>
-              </div>
-              <p>验证后进入只读收件箱，查看最近 7 天邮件与验证码。</p>
-              <form id="mail-query-form">
-                <div class="field access-key-field">
-                  <label for="mail-token">查询密钥</label>
-                  <div class="access-input-wrap"><i data-lucide="key-round"></i><input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="输入 cv_ 开头的查询密钥"></div>
-                </div>
-                <p id="mail-query-error" class="message" role="alert"></p>
-                <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="unlock-keyhole" class="icon"></i><span>进入安全收件箱</span></button>
-              </form>
-              <div class="access-assurance">
-                <span><i data-lucide="eye"></i>只读访问</span>
-                <span><i data-lucide="file-lock-2"></i>正文按需加载</span>
-                <span><i data-lucide="calendar-clock"></i>邮件保留 7 天</span>
-              </div>
+        <header class="public-tool-head"><div><span class="pane-kicker">MAILBOX</span><h1>邮箱</h1><p>输入查询密钥后，在右侧查看邮件或接收验证码。</p></div></header>
+        <div class="public-tool-layout public-mail-layout">
+          <form id="mail-query-form" class="public-tool-form mail-query-form">
+            <div class="field">
+              <label for="mail-token">查询密钥</label>
+              <div class="access-input-wrap"><i data-lucide="key-round"></i><input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="输入 cv_ 开头的查询密钥"></div>
             </div>
+            <p id="mail-query-error" class="message" role="alert"></p>
+            <div class="mail-action-buttons" role="group" aria-label="邮箱操作">
+              <button class="btn btn-secondary active" type="submit" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>查看收件箱</span><strong id="mail-total-count">0</strong></button>
+              <button class="btn btn-secondary" type="submit" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>接收验证码</span><strong id="mail-code-count">0</strong></button>
+            </div>
+          </form>
+          <div class="mail-results-pane">
+            <div id="mail-placeholder" class="public-tool-placeholder"><i data-lucide="mail-search"></i><strong>邮箱结果显示在这里</strong><span>输入查询密钥后，可以查看收件箱、搜索邮件或接收验证码。</span></div>
+            <section id="mail-list-pane" class="public-message-pane hidden">
+              <header class="public-pane-head">
+                <div class="public-pane-title"><span class="pane-kicker">MAILBOX</span><h1 id="mail-list-title">邮箱</h1><small id="mail-last-refresh">尚未更新</small></div>
+                <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
+              </header>
+              <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新邮件，点击查看</span></button>
+              <div class="public-search">
+                <i data-lucide="search" class="icon"></i>
+                <input id="mail-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人、主题或摘要">
+                <button id="clear-mail-search" class="hidden" type="button" title="清除搜索" aria-label="清除搜索"><i data-lucide="x"></i></button>
+              </div>
+              <p id="mail-list-status" class="public-list-status" role="status"></p>
+              <div id="mail-message-list" class="public-message-list" aria-live="polite"></div>
+              <div id="mail-list-empty" class="public-empty hidden"><i data-lucide="mail-search"></i><strong>没有找到邮件</strong><span>可以刷新或修改搜索条件。</span></div>
+              <div id="mail-load-sentinel" class="public-load-sentinel">
+                <button id="mail-load-more" class="btn btn-secondary hidden" type="button"><i data-lucide="chevrons-down" class="icon"></i><span>加载更多</span></button>
+              </div>
+            </section>
+            <article id="mail-detail" class="public-message-detail hidden">
+              <div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看纯文本正文与验证码。</span></div>
+            </article>
           </div>
-          <div class="public-search">
-            <i data-lucide="search" class="icon"></i>
-            <input id="mail-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人、主题或摘要">
-            <button id="clear-mail-search" class="hidden" type="button" title="清除搜索" aria-label="清除搜索"><i data-lucide="x"></i></button>
-          </div>
-          <p id="mail-list-status" class="public-list-status" role="status"></p>
-          <div id="mail-message-list" class="public-message-list" aria-live="polite"></div>
-          <div id="mail-list-empty" class="public-empty hidden"><i data-lucide="mail-search"></i><strong>没有找到邮件</strong><span>可以刷新或修改搜索条件。</span></div>
-          <div id="mail-load-sentinel" class="public-load-sentinel">
-            <button id="mail-load-more" class="btn btn-secondary hidden" type="button"><i data-lucide="chevrons-down" class="icon"></i><span>加载更多</span></button>
-          </div>
-        </section>
-
-        <article id="mail-detail" class="public-message-detail">
-          <div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看纯文本正文与验证码。</span></div>
-        </article>
+        </div>
       </section>
 
       <section id="batch-view" class="public-page public-tool-view hidden" aria-labelledby="batch-title">
@@ -162,6 +149,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260810-19"></script>
+  <script src="/assets/query.js?v=20260810-20"></script>
 </body>
 </html>

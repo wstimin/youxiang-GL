@@ -4,6 +4,7 @@ const inboxWorkspace = document.querySelector('#inbox-workspace');
 const mailForm = document.querySelector('#mail-query-form');
 const mailTokenInput = document.querySelector('#mail-token');
 const mailErrorBox = document.querySelector('#mail-query-error');
+const mailPlaceholder = document.querySelector('#mail-placeholder');
 const mailListPane = document.querySelector('#mail-list-pane');
 const mailView = document.querySelector('#mail-view');
 const mailListTitle = document.querySelector('#mail-list-title');
@@ -228,8 +229,16 @@ function setPublicView(view) {
 function selectAccessMail(filter = 'all') {
   mailState.filter = filter;
   setPublicView('mail');
-  mailView.classList.add('mail-locked');
+  document.querySelectorAll('[data-mail-filter]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.mailFilter === filter);
+  });
   mailTokenInput.focus();
+}
+
+function setMailResultsVisible(visible) {
+  mailPlaceholder.classList.toggle('hidden', visible);
+  mailListPane.classList.toggle('hidden', !visible);
+  mailDetail.classList.toggle('hidden', !visible);
 }
 
 function resetMailDetail() {
@@ -326,7 +335,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     setRefreshLabel();
     scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || 60));
     if (unlock) {
-      mailView.classList.remove('mail-locked');
+      setMailResultsVisible(true);
       setPublicView('mail');
     }
     renderIcons();
@@ -675,6 +684,9 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
     }
     const changed = mailState.filter !== filter;
     mailState.filter = filter;
+    document.querySelectorAll('[data-mail-filter]').forEach((action) => {
+      action.classList.toggle('active', action.dataset.mailFilter === filter);
+    });
     mailListTitle.textContent = '邮箱';
     setPublicView('mail');
     if (changed) {
@@ -685,17 +697,25 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
   setPublicView(button.dataset.publicView);
 }));
 
+setMailResultsVisible(false);
 selectAccessMail('all');
 
 mailForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   mailErrorBox.textContent = '';
-  const button = mailForm.querySelector('[type="submit"]');
+  const button = event.submitter || mailForm.querySelector('[type="submit"]');
+  mailState.filter = button.dataset.mailFilter || mailState.filter || 'all';
+  document.querySelectorAll('[data-mail-filter]').forEach((action) => {
+    action.classList.toggle('active', action.dataset.mailFilter === mailState.filter);
+  });
   button.disabled = true;
-  mailState.token = mailTokenInput.value.trim();
+  const nextToken = mailTokenInput.value.trim();
+  if (nextToken) mailState.token = nextToken;
   try {
+    if (!mailState.token) throw new Error('请输入查询密钥');
     await loadMessages({ reset: true, unlock: true });
     mailTokenInput.value = '';
+    mailTokenInput.required = false;
   } catch (error) {
     mailErrorBox.textContent = error.message;
   } finally {
@@ -714,9 +734,11 @@ changeKeyButton.addEventListener('click', () => {
   mailState.lastRefreshAt = null;
   mailState.loading = false;
   mailState.requestId += 1;
+  mailTokenInput.required = true;
   mailSearchInput.value = '';
   mailMessageList.replaceChildren();
   resetMailDetail();
+  setMailResultsVisible(false);
   selectAccessMail('all');
 });
 
