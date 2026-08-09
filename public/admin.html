@@ -14,7 +14,7 @@
       <nav class="nav">
         <button class="active" data-section="overview" title="概览"><i data-lucide="layout-dashboard" class="icon"></i><span>概览</span></button>
         <button data-section="mailboxes" title="母邮箱"><i data-lucide="inbox" class="icon"></i><span>母邮箱</span></button>
-        <button data-section="aliases" title="子邮箱"><i data-lucide="at-sign" class="icon"></i><span>子邮箱</span></button>
+        <button data-section="aliases" title="邮箱"><i data-lucide="at-sign" class="icon"></i><span>邮箱</span></button>
         <button data-section="totp-entries" title="2FA 管理"><i data-lucide="fingerprint" class="icon"></i><span>2FA 管理</span></button>
         <button data-section="messages" title="收信记录"><i data-lucide="mails" class="icon"></i><span>收信记录</span></button>
         <button data-section="security" title="安全"><i data-lucide="key-round" class="icon"></i><span>安全</span></button>
@@ -36,24 +36,24 @@
           <div class="panel"><div id="accounts-table" class="table-wrap"></div></div>
         </section>
         <section id="aliases" class="section">
-          <div class="section-head"><div><h2>子邮箱</h2><p>管理用于查询邮箱验证码的子邮箱和独立查询密钥。</p></div><div class="head-actions"><button id="import-aliases" class="btn btn-secondary"><i data-lucide="upload" class="icon"></i><span>批量导入</span></button><button id="export-aliases" class="btn btn-secondary"><i data-lucide="download" class="icon"></i><span>导出</span></button><button id="add-alias" class="btn btn-primary"><i data-lucide="plus" class="icon"></i><span>添加子邮箱</span></button></div></div>
-          <div class="list-toolbar"><div class="field search-field"><label class="sr-only" for="alias-search">搜索子邮箱</label><i data-lucide="search" class="icon"></i><input id="alias-search" type="search" placeholder="搜索子邮箱或备注"></div><span id="alias-count" class="muted"></span></div>
+          <div class="section-head"><div><h2>邮箱</h2><p>管理用于查询邮箱验证码的邮箱和独立查询密钥。</p></div><div class="head-actions"><button id="import-aliases" class="btn btn-secondary"><i data-lucide="upload" class="icon"></i><span>批量导入</span></button><button id="export-aliases" class="btn btn-secondary"><i data-lucide="download" class="icon"></i><span>导出</span></button><button id="add-alias" class="btn btn-primary"><i data-lucide="plus" class="icon"></i><span>添加邮箱</span></button></div></div>
+          <div class="list-toolbar"><div class="field search-field"><label class="sr-only" for="alias-search">搜索邮箱</label><i data-lucide="search" class="icon"></i><input id="alias-search" type="search" placeholder="搜索邮箱或备注"></div><span id="alias-count" class="muted"></span></div>
           <div class="panel"><div id="aliases-table" class="table-wrap"></div></div>
         </section>
         <section id="totp-entries" class="section">
-          <div class="section-head"><div><h2>2FA 管理</h2><p>查看和管理前端直接转换保存的独立 TOTP 密钥，与邮箱和子邮箱无关联。</p></div></div>
+          <div class="section-head"><div><h2>2FA 管理</h2><p>查看和管理前端直接转换保存的独立 TOTP 密钥，与邮箱无关联。</p></div></div>
           <div class="list-toolbar"><div class="field search-field"><label class="sr-only" for="totp-search">搜索 2FA</label><i data-lucide="search" class="icon"></i><input id="totp-search" type="search" placeholder="搜索平台、账号或密钥末四位"></div><span id="totp-count" class="muted"></span></div>
           <div class="panel"><div id="totp-entries-table" class="table-wrap"></div></div>
         </section>
         <section id="messages" class="section">
           <div class="section-head"><div><h2>收信记录</h2><p>保留必要元数据、短期验证码和最近 7 天的加密纯文本正文。</p></div></div>
-          <div class="list-toolbar"><div class="field search-field"><label class="sr-only" for="message-search">搜索收信记录</label><i data-lucide="search" class="icon"></i><input id="message-search" type="search" placeholder="搜索子邮箱、发件人或主题"></div><span id="message-count" class="muted"></span></div>
+          <div class="list-toolbar"><div class="field search-field"><label class="sr-only" for="message-search">搜索收信记录</label><i data-lucide="search" class="icon"></i><input id="message-search" type="search" placeholder="搜索邮箱、发件人或主题"></div><span id="message-count" class="muted"></span></div>
           <div class="panel"><div class="panel-head"><h3>已归类邮件</h3></div><div id="messages-table" class="table-wrap"></div></div>
-          <div class="panel"><div class="panel-head"><h3>未匹配子邮箱</h3></div><div id="unmatched-table" class="table-wrap"></div></div>
+          <div class="panel"><div class="panel-head"><h3>未匹配邮箱</h3></div><div id="unmatched-table" class="table-wrap"></div></div>
         </section>
         <section id="security" class="section">
-          <div class="section-head"><div><h2>安全设置</h2><p>这里的 TOTP 仅保护管理员登录，与子邮箱第三方平台 2FA 分开。</p></div></div>
-          <div class="panel"><div class="panel-head"><h3>单个查询验证码方式</h3></div><div class="panel-body"><label class="setting-toggle" for="verification-mode-enabled"><span><strong>启用验证码方式</strong><small id="verification-mode-status">单个查询返回最新有效验证码</small></span><input id="verification-mode-enabled" type="checkbox" role="switch"><span class="toggle-track" aria-hidden="true"></span></label><p class="muted compact-note">开启时单个查询只返回最新有效验证码；关闭时单个查询可查看该子邮箱最近 7 天的全部文本邮件。批量查询始终固定为验证码方式。</p></div></div>
+          <div class="section-head"><div><h2>安全设置</h2><p>这里的 TOTP 仅保护管理员登录，与邮箱第三方平台 2FA 分开。</p></div></div>
+          <div class="panel"><div class="panel-head"><h3>单个查询验证码方式</h3></div><div class="panel-body"><label class="setting-toggle" for="verification-mode-enabled"><span><strong>启用验证码方式</strong><small id="verification-mode-status">单个查询返回最新有效验证码</small></span><input id="verification-mode-enabled" type="checkbox" role="switch"><span class="toggle-track" aria-hidden="true"></span></label><p class="muted compact-note">开启时单个查询只返回最新有效验证码；关闭时单个查询可查看该邮箱最近 7 天的全部文本邮件。批量查询始终固定为验证码方式。</p></div></div>
           <div class="panel"><div class="panel-head"><h3>管理员登录 2FA</h3></div><div class="panel-body"><p id="totp-status" class="muted"></p><button id="setup-totp" class="btn btn-primary"><i data-lucide="scan-line" class="icon"></i><span>启用管理员 TOTP</span></button></div></div>
           <div class="panel"><div class="panel-head"><h3>修改登录密码</h3></div><div class="panel-body"><form id="password-form" class="form-grid"><div class="field"><label for="current-password">当前密码</label><input id="current-password" type="password" autocomplete="current-password" required></div><div class="field"><label for="new-password">新密码</label><input id="new-password" type="password" minlength="8" autocomplete="new-password" required></div><div class="form-actions"><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>更新密码</span></button></div></form></div></div>
           <div class="panel"><div class="panel-head"><h3>登录会话</h3><button id="revoke-other-sessions" class="btn btn-secondary"><i data-lucide="log-out" class="icon"></i><span>退出其他设备</span></button></div><div id="sessions-table" class="table-wrap"></div></div>
@@ -64,6 +64,6 @@
   <div id="modal-root"></div>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/admin.js?v=20260809-6"></script>
+  <script src="/assets/admin.js?v=20260809-7"></script>
 </body>
 </html>

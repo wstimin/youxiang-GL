@@ -56,7 +56,7 @@ function renderAliasMeta(data) {
   const detail = data.mode === 'code'
     ? '最新有效验证码'
     : `${data.pagination.total} 封邮件`;
-  return `<div class="result-meta"><strong>${escapeHtml(data.label || '子邮箱')}</strong><span>${escapeHtml(data.alias)} · ${detail}</span></div>`;
+  return `<div class="result-meta"><strong>${escapeHtml(data.label || '邮箱')}</strong><span>${escapeHtml(data.alias)} · ${detail}</span></div>`;
 }
 
 function formatMailDate(value) {
@@ -95,7 +95,7 @@ function renderMailText(data) {
       <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page - 1}" ${data.pagination.page <= 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="icon"></i><span>上一页</span></button>
       <span>第 ${data.pagination.page} 页 · 共 ${data.pagination.total} 封</span>
       <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page + 1}" ${data.pagination.hasMore ? '' : 'disabled'}><span>下一页</span><i data-lucide="chevron-right" class="icon"></i></button>
-    </div>` : '<p class="muted result-empty">该子邮箱最近 7 天内没有已归属邮件。</p>'}`;
+    </div>` : '<p class="muted result-empty">该邮箱最近 7 天内没有已归属邮件。</p>'}`;
 }
 
 function renderMail(data) {
@@ -166,7 +166,7 @@ function renderMailBatch(data) {
   const invalid = data.results.filter((item) => item.status === 'invalid').length;
   mailBatchResultBox.classList.remove('hidden');
   mailBatchResultBox.innerHTML = `
-    <div class="result-meta batch-result-meta"><strong>批量接码列表</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
+    <div class="result-meta batch-result-meta"><strong>批量接收邮件</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
     <div class="batch-result-list">${data.results.map((item) => `
       <section class="batch-result-row batch-${item.status}">
         <div class="batch-result-identity">

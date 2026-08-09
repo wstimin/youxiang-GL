@@ -131,7 +131,7 @@ function render() {
   const connected = data.accounts.filter((row) => row.enabled && row.status === 'connected').length;
   document.querySelector('#stats').innerHTML = [
     ['inbox', '在线母邮箱', `${connected}/${data.accounts.length}`],
-    ['at-sign', '启用子邮箱', data.aliases.filter((row) => row.enabled).length],
+    ['at-sign', '启用邮箱', data.aliases.filter((row) => row.enabled).length],
     ['search-check', '今日成功查询', data.metrics.queries_today],
     ['shield-alert', '今日失败查询', data.metrics.query_failures_today],
     ['fingerprint', '今日 2FA 转换', data.metrics.totp_conversions_today],
@@ -158,13 +158,13 @@ function render() {
   document.querySelector('#message-count').textContent = `${filteredMessages.length}/${data.recent.length} 条`;
 
   const recentRows = data.recent.slice(0, 10).map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${formatDate(row.received_at)}</td></tr>`);
-  document.querySelector('#overview-recent').innerHTML = table(['子邮箱', '发件人', '主题', '验证码', '收到时间'], recentRows);
-  document.querySelector('#messages-table').innerHTML = table(['子邮箱', '发件人', '主题', '验证码', '置信度', '过期时间'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${row.confidence}%</td><td>${formatDate(row.expires_at)}</td></tr>`));
+  document.querySelector('#overview-recent').innerHTML = table(['邮箱', '发件人', '主题', '验证码', '收到时间'], recentRows);
+  document.querySelector('#messages-table').innerHTML = table(['邮箱', '发件人', '主题', '验证码', '置信度', '过期时间'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${row.confidence}%</td><td>${formatDate(row.expires_at)}</td></tr>`));
   document.querySelector('#unmatched-table').innerHTML = table(['发件人', '主题', '收件信息', '收到时间'], data.unmatched.map((row) => `<tr><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>`));
   document.querySelector('#audit-table').innerHTML = table(['操作者', '动作', '目标', '时间'], data.audit.slice(0, 12).map((row) => `<tr><td>${escapeHtml(row.actor)}</td><td>${escapeHtml(row.action)}</td><td>${escapeHtml(row.target || row.detail)}</td><td>${formatDate(row.created_at)}</td></tr>`));
 
   document.querySelector('#accounts-table').innerHTML = table(['邮箱', '服务商', 'IMAP', '状态', '最后同步', '操作'], data.accounts.map((row) => `<tr><td><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<br><small class="danger-text">${escapeHtml(row.last_error)}</small>` : ''}</td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td>${escapeHtml(row.host)}:${row.port}</td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
-  document.querySelector('#aliases-table').innerHTML = table(['子邮箱', '备注', '密钥提示', '状态', '最近收信', '操作'], filteredAliases.map((row) => `<tr><td><strong>${escapeHtml(row.address)}</strong></td><td>${escapeHtml(row.label || '-')}</td><td>末六位 ${escapeHtml(row.token_hint || '-')}${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑子邮箱" aria-label="编辑子邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除子邮箱" aria-label="删除子邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
+  document.querySelector('#aliases-table').innerHTML = table(['邮箱', '备注', '密钥提示', '状态', '最近收信', '操作'], filteredAliases.map((row) => `<tr><td><strong>${escapeHtml(row.address)}</strong></td><td>${escapeHtml(row.label || '-')}</td><td>末六位 ${escapeHtml(row.token_hint || '-')}${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑邮箱" aria-label="编辑邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除邮箱" aria-label="删除邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
   document.querySelector('#totp-entries-table').innerHTML = table(['平台', '账号', '密钥提示', '来源', '最近使用', '操作'], filteredTotps.map((row) => `<tr><td><div class="admin-totp-platform">${renderTotpAvatar(row.issuer)}<strong>${escapeHtml(row.issuer || '未命名平台')}</strong></div></td><td>${escapeHtml(row.account_name || '-')}</td><td>末四位 ${escapeHtml(row.secret_hint || '-')}</td><td>${row.legacy_alias_address ? `由旧配置迁移<br><small class="muted">${escapeHtml(row.legacy_alias_address)}</small>` : '前端直接添加'}</td><td>${formatDate(row.last_used_at || row.created_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-totp-edit="${row.id}" title="编辑 2FA 备注" aria-label="编辑 2FA 备注"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-totp-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥与验证码</span></button><button class="btn btn-danger btn-icon" title="删除 2FA" aria-label="删除 2FA" data-totp-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
   document.querySelector('#sessions-table').innerHTML = table(['设备', '登录时间', '过期时间', '状态', '操作'], data.sessions.map((row) => `<tr><td><strong>${escapeHtml(sessionDevice(row.user_agent))}</strong></td><td>${formatDate(row.created_at)}</td><td>${formatDate(row.expires_at)}</td><td>${row.current ? '<span class="badge">当前会话</span>' : '<span class="badge off">其他会话</span>'}</td><td>${row.current ? '<span class="muted">正在使用</span>' : `<button class="btn btn-danger" data-session-revoke="${row.session_id}">退出此设备</button>`}</td></tr>`));
 
@@ -194,7 +194,7 @@ function openModal(title, body) {
 function closeModal() { modalRoot.innerHTML = ''; }
 
 function showSecret(token) {
-  openModal('查询密钥已生成', `<p>密钥已使用主密钥加密保存。管理员以后可在子邮箱列表中通过密码确认再次查看。</p><div id="generated-token" class="secret-box">${escapeHtml(token)}</div><div class="form-actions"><button id="copy-secret" class="btn btn-primary"><i data-lucide="copy" class="icon"></i><span>复制密钥</span></button></div>`);
+  openModal('查询密钥已生成', `<p>密钥已使用主密钥加密保存。管理员以后可在邮箱列表中通过密码确认再次查看。</p><div id="generated-token" class="secret-box">${escapeHtml(token)}</div><div class="form-actions"><button id="copy-secret" class="btn btn-primary"><i data-lucide="copy" class="icon"></i><span>复制密钥</span></button></div>`);
   document.querySelector('#copy-secret').addEventListener('click', async () => {
     await navigator.clipboard.writeText(token);
     toastMessage('查询密钥已复制');
@@ -213,7 +213,7 @@ function bindRowActions() {
     await api(`/api/admin/mail-account/${button.dataset.accountToggle}/toggle`, { method: 'POST' }); await loadState();
   }));
   document.querySelectorAll('[data-account-delete]').forEach((button) => button.addEventListener('click', async () => {
-    if (!confirm('删除母邮箱会同时删除其子邮箱和验证码记录。确认继续？')) return;
+    if (!confirm('删除母邮箱会同时删除其邮箱和验证码记录。确认继续？')) return;
     await api(`/api/admin/mail-account/${button.dataset.accountDelete}`, { method: 'DELETE' }); await loadState();
   }));
   document.querySelectorAll('[data-alias-reset]').forEach((button) => button.addEventListener('click', async () => {
@@ -237,7 +237,7 @@ function bindRowActions() {
     await api(`/api/admin/aliases/${button.dataset.aliasToggle}/toggle`, { method: 'POST' }); await loadState();
   }));
   document.querySelectorAll('[data-alias-delete]').forEach((button) => button.addEventListener('click', async () => {
-    if (!confirm('删除后，该子邮箱的验证码记录也会删除。确认继续？')) return;
+    if (!confirm('删除后，该邮箱的验证码记录也会删除。确认继续？')) return;
     await api(`/api/admin/aliases/${button.dataset.aliasDelete}`, { method: 'DELETE' }); await loadState();
   }));
   document.querySelectorAll('[data-session-revoke]').forEach((button) => button.addEventListener('click', async () => {
@@ -305,7 +305,7 @@ function openAliasEditor(id) {
   const alias = state.data.aliases.find((row) => String(row.id) === String(id));
   if (!alias) return;
   const options = state.data.accounts.map((row) => `<option value="${row.id}" ${String(row.id) === String(alias.mail_account_id) ? 'selected' : ''}>${escapeHtml(row.email)}</option>`).join('');
-  openModal('编辑子邮箱', `<form id="alias-edit-form"><div class="form-grid"><div class="field"><label for="edit-alias-account">所属母邮箱</label><select id="edit-alias-account">${options}</select></div><div class="field"><label for="edit-alias-address">子邮箱地址</label><input id="edit-alias-address" type="email" required value="${escapeHtml(alias.address)}"></div><div class="field"><label for="edit-alias-label">备注</label><input id="edit-alias-label" maxlength="80" value="${escapeHtml(alias.label || '')}"></div><div class="field"><label for="edit-alias-expiry">查询密钥有效期</label><select id="edit-alias-expiry"><option value="keep">保持当前设置</option><option value="never">改为长期有效</option><option value="days">从现在起重新计算</option></select></div><div id="edit-alias-days-field" class="field hidden"><label for="edit-alias-days">有效天数</label><input id="edit-alias-days" type="number" min="1" max="3650" value="30"></div></div><p class="muted compact-note">本操作不会修改或重置现有查询密钥。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>保存修改</span></button></div></form>`);
+  openModal('编辑邮箱', `<form id="alias-edit-form"><div class="form-grid"><div class="field"><label for="edit-alias-account">所属母邮箱</label><select id="edit-alias-account">${options}</select></div><div class="field"><label for="edit-alias-address">邮箱地址</label><input id="edit-alias-address" type="email" required value="${escapeHtml(alias.address)}"></div><div class="field"><label for="edit-alias-label">备注</label><input id="edit-alias-label" maxlength="80" value="${escapeHtml(alias.label || '')}"></div><div class="field"><label for="edit-alias-expiry">查询密钥有效期</label><select id="edit-alias-expiry"><option value="keep">保持当前设置</option><option value="never">改为长期有效</option><option value="days">从现在起重新计算</option></select></div><div id="edit-alias-days-field" class="field hidden"><label for="edit-alias-days">有效天数</label><input id="edit-alias-days" type="number" min="1" max="3650" value="30"></div></div><p class="muted compact-note">本操作不会修改或重置现有查询密钥。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>保存修改</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
   document.querySelector('#edit-alias-expiry').addEventListener('change', (event) => {
     document.querySelector('#edit-alias-days-field').classList.toggle('hidden', event.target.value !== 'days');
@@ -320,7 +320,7 @@ function openAliasEditor(id) {
         expiryMode: document.querySelector('#edit-alias-expiry').value,
         expiresDays: document.querySelector('#edit-alias-days').value
       }) });
-      closeModal(); await loadState(); toastMessage('子邮箱已更新');
+      closeModal(); await loadState(); toastMessage('邮箱已更新');
     } catch (error) { document.querySelector('#modal-error').textContent = error.message; }
   });
   lucide.createIcons();
@@ -417,7 +417,7 @@ function openTotpSecrets(id) {
 
 function renderTotpSecrets(data) {
   const title = [data.issuer, data.accountName].filter(Boolean).join(' · ') || '独立 2FA';
-  openModal(title, `<p class="muted">关闭窗口后，页面不会继续保留这些明文。</p>${secretSection('2FA 手动密钥', data.secret, 'copy-totp-secret', '密钥为空。')}<section class="secret-section"><h3>当前 2FA 验证码</h3><div class="secret-row"><div class="secret-box code-secret">${escapeHtml(data.code)}</div><button id="copy-totp-code-admin" class="btn btn-secondary btn-icon" type="button" title="复制 2FA 验证码" aria-label="复制 2FA 验证码"><i data-lucide="copy" class="icon"></i></button></div><p class="muted compact-note">剩余约 ${data.remaining} 秒。${data.legacyAliasAddress ? ` 此记录由旧子邮箱配置 ${escapeHtml(data.legacyAliasAddress)} 自动迁移。` : ''}</p></section>`);
+  openModal(title, `<p class="muted">关闭窗口后，页面不会继续保留这些明文。</p>${secretSection('2FA 手动密钥', data.secret, 'copy-totp-secret', '密钥为空。')}<section class="secret-section"><h3>当前 2FA 验证码</h3><div class="secret-row"><div class="secret-box code-secret">${escapeHtml(data.code)}</div><button id="copy-totp-code-admin" class="btn btn-secondary btn-icon" type="button" title="复制 2FA 验证码" aria-label="复制 2FA 验证码"><i data-lucide="copy" class="icon"></i></button></div><p class="muted compact-note">剩余约 ${data.remaining} 秒。${data.legacyAliasAddress ? ` 此记录由旧邮箱配置 ${escapeHtml(data.legacyAliasAddress)} 自动迁移。` : ''}</p></section>`);
   document.querySelector('#copy-totp-secret').addEventListener('click', () => navigator.clipboard.writeText(data.secret).then(() => toastMessage('2FA 手动密钥已复制')));
   document.querySelector('#copy-totp-code-admin').addEventListener('click', () => navigator.clipboard.writeText(data.code).then(() => toastMessage('2FA 验证码已复制')));
   lucide.createIcons();
@@ -450,15 +450,15 @@ document.querySelector('#verification-mode-enabled').addEventListener('change', 
 
 document.querySelector('#export-aliases').addEventListener('click', async () => {
   const data = await api('/api/admin/aliases/export');
-  if (!data.aliases.length) return toastMessage(data.skipped ? '没有可导出的密钥，请先重置旧密钥' : '没有可导出的子邮箱密钥');
+  if (!data.aliases.length) return toastMessage(data.skipped ? '没有可导出的密钥，请先重置旧密钥' : '没有可导出的邮箱密钥');
   downloadText(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.aliases));
-  toastMessage(data.skipped ? `已导出 ${data.aliases.length} 条，跳过 ${data.skipped} 条不可恢复的旧密钥` : `已导出 ${data.aliases.length} 条子邮箱密钥`);
+  toastMessage(data.skipped ? `已导出 ${data.aliases.length} 条，跳过 ${data.skipped} 条不可恢复的旧密钥` : `已导出 ${data.aliases.length} 条邮箱密钥`);
 });
 
 document.querySelector('#import-aliases').addEventListener('click', () => {
   if (!state.data.accounts.length) return toastMessage('请先接入母邮箱');
   const options = state.data.accounts.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('');
-  openModal('批量导入子邮箱', `<form id="alias-import-form"><div class="field"><label for="import-alias-account">所属母邮箱</label><select id="import-alias-account">${options}</select></div><div class="field"><label for="import-alias-lines">子邮箱列表</label><textarea id="import-alias-lines" rows="10" required placeholder="alias1@icloud.com,账号 01&#10;alias2@icloud.com,账号 02"></textarea></div><p class="muted compact-note">每行一个子邮箱，可在英文逗号后填写备注，最多导入 500 条。已存在的地址会自动跳过。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="upload" class="icon"></i><span>开始导入</span></button></div></form>`);
+  openModal('批量导入邮箱', `<form id="alias-import-form"><div class="field"><label for="import-alias-account">所属母邮箱</label><select id="import-alias-account">${options}</select></div><div class="field"><label for="import-alias-lines">邮箱列表</label><textarea id="import-alias-lines" rows="10" required placeholder="alias1@icloud.com,账号 01&#10;alias2@icloud.com,账号 02"></textarea></div><p class="muted compact-note">每行一个邮箱，可在英文逗号后填写备注，最多导入 500 条。已存在的地址会自动跳过。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="upload" class="icon"></i><span>开始导入</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
   document.querySelector('#alias-import-form').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -499,7 +499,7 @@ document.querySelector('#add-account').addEventListener('click', () => {
 document.querySelector('#add-alias').addEventListener('click', () => {
   if (!state.data.accounts.length) return toastMessage('请先接入母邮箱');
   const options = state.data.accounts.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('');
-  openModal('添加子邮箱', `<form id="alias-form"><div class="form-grid"><div class="field"><label for="alias-account">所属母邮箱</label><select id="alias-account">${options}</select></div><div class="field"><label for="alias-address">子邮箱地址</label><input id="alias-address" type="email" required></div><div class="field"><label for="alias-label">备注</label><input id="alias-label" maxlength="80" placeholder="例如：测试账号 01"></div><div class="field"><label for="alias-days">密钥有效天数</label><input id="alias-days" type="number" min="1" max="3650" placeholder="留空表示长期"></div></div><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="key-round" class="icon"></i><span>创建并生成密钥</span></button></div></form>`);
+  openModal('添加邮箱', `<form id="alias-form"><div class="form-grid"><div class="field"><label for="alias-account">所属母邮箱</label><select id="alias-account">${options}</select></div><div class="field"><label for="alias-address">邮箱地址</label><input id="alias-address" type="email" required></div><div class="field"><label for="alias-label">备注</label><input id="alias-label" maxlength="80" placeholder="例如：测试账号 01"></div><div class="field"><label for="alias-days">密钥有效天数</label><input id="alias-days" type="number" min="1" max="3650" placeholder="留空表示长期"></div></div><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="key-round" class="icon"></i><span>创建并生成密钥</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
   document.querySelector('#alias-form').addEventListener('submit', async (event) => {
     event.preventDefault(); const button = event.currentTarget.querySelector('[type="submit"]'); button.disabled = true;
