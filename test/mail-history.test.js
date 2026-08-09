@@ -49,6 +49,8 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.match(bodyRoute, /WHERE id = \$1 AND alias_id = \$2 AND mail_expires_at > NOW\(\)/);
   assert.match(bodyRoute, /mailMessageResponse\(result\.rows\[0\], true\)/);
   assert.doesNotMatch(bodyRoute, /token_encrypted/);
+  const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/totp'"));
+  assert.match(batchRoute, /SELECT id, sender, subject, code_encrypted, received_at, expires_at, mail_expires_at/);
 });
 
 test('public mail UI renders plain text bodies and seven-day history', () => {

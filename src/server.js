@@ -404,7 +404,7 @@ app.post('/api/query/batch', async (req, res, next) => {
          v.mail_expires_at
        FROM aliases a
        LEFT JOIN LATERAL (
-         SELECT id, sender, subject, code_encrypted, received_at, expires_at
+         SELECT id, sender, subject, code_encrypted, received_at, expires_at, mail_expires_at
          FROM verification_messages
          WHERE alias_id = a.id AND mail_expires_at > NOW() AND expires_at > NOW() AND code_encrypted IS NOT NULL
          ORDER BY received_at DESC LIMIT 1
