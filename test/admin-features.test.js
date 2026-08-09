@@ -45,9 +45,9 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-avatar-face"/);
   assert.match(adminHtml, /class="admin-avatar-hair"/);
   assert.match(adminHtml, /class="admin-avatar-body"/);
-  assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-4/);
-  assert.match(adminHtml, /admin\.js\?v=20260809-5/);
-  assert.match(adminHtml, /styles\.css\?v=20260809-5/);
+  assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
+  assert.match(adminHtml, /admin\.js\?v=20260809-6/);
+  assert.match(adminHtml, /styles\.css\?v=20260809-7/);
   assert.doesNotMatch(adminHtml, /class="nav-totp"|class="twofa-mark"/);
   assert.doesNotMatch(adminHtml, /data-lucide="shield-keyhole"/);
   assert.match(styles, /\.nav button > span/);
@@ -70,6 +70,32 @@ test('alias secret exports use address--token text format', () => {
   assert.match(admin, /icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt/g);
   assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.created\)\)/);
   assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.aliases\)\)/);
+});
+
+test('administrator controls the global single-query verification mode', () => {
+  const stateRoute = server.slice(
+    server.indexOf("app.get('/api/admin/state'"),
+    server.indexOf("app.post('/api/admin/mail-account/:id/sync'")
+  );
+  const settingsRoute = server.slice(
+    server.indexOf("app.post('/api/admin/settings/verification-mode'"),
+    server.indexOf("app.post('/api/admin/mail-account/:id/sync'")
+  );
+  const batchRoute = server.slice(
+    server.indexOf("app.post('/api/query/batch'"),
+    server.indexOf("app.post('/api/query/totp'")
+  );
+
+  assert.match(schema, /verification_mode_enabled/);
+  assert.match(stateRoute, /settings: \{ verificationModeEnabled: codeMode \}/);
+  assert.match(settingsRoute, /typeof req\.body\.enabled !== 'boolean'/);
+  assert.match(settingsRoute, /verification_mode_enabled/);
+  assert.match(settingsRoute, /verification_mode_disabled/);
+  assert.match(settingsRoute, /await audit\(/);
+  assert.match(adminHtml, /id="verification-mode-enabled"[^>]*type="checkbox"[^>]*role="switch"/);
+  assert.match(admin, /\/api\/admin\/settings\/verification-mode/);
+  assert.match(adminHtml, /批量查询始终固定为验证码方式/);
+  assert.doesNotMatch(batchRoute, /verificationModeEnabled|body_text_encrypted|bodyPreview/);
 });
 
 test('mail accounts support fixed iCloud, Gmail, and Outlook provider presets', () => {

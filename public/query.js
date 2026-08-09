@@ -53,7 +53,10 @@ async function request(url, body) {
 }
 
 function renderAliasMeta(data) {
-  return `<div class="result-meta"><strong>${escapeHtml(data.label || '子邮箱')}</strong><span>${escapeHtml(data.alias)} · ${data.pagination.total} 封邮件</span></div>`;
+  const detail = data.mode === 'code'
+    ? '最新有效验证码'
+    : `${data.pagination.total} 封邮件`;
+  return `<div class="result-meta"><strong>${escapeHtml(data.label || '子邮箱')}</strong><span>${escapeHtml(data.alias)} · ${detail}</span></div>`;
 }
 
 function formatMailDate(value) {
@@ -66,9 +69,18 @@ function mailCodeMarkup(message) {
   return `<span class="mail-code"><span>${escapeHtml(message.code)}</span><button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button></span>`;
 }
 
-function renderMail(data) {
-  mailResultBox.classList.remove('hidden');
-  mailResultBox.innerHTML = `${renderAliasMeta(data)}${data.messages.length ? `
+function renderMailCode(data) {
+  const message = data.message;
+  return `${renderAliasMeta(data)}<section class="code-section mail-code-section">
+    <header class="code-section-head"><h2>最新有效验证码</h2></header>
+    ${message ? `<div class="code-line"><strong class="code-value">${escapeHtml(message.code)}</strong><button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button></div>
+      <div class="result-detail"><span>发件人：${escapeHtml(message.sender || '未知发件人')}</span><span>主题：${escapeHtml(message.subject || '无主题')}</span><span>收到时间：${escapeHtml(formatMailDate(message.receivedAt))}</span></div>`
+      : '<p class="muted result-empty">暂时没有有效验证码，请稍后刷新。</p>'}
+  </section>`;
+}
+
+function renderMailText(data) {
+  return `${renderAliasMeta(data)}${data.messages.length ? `
     <div class="mail-list">${data.messages.map((message) => `
       <article class="mail-item" data-mail-id="${message.id}">
         <header class="mail-item-head">
@@ -84,11 +96,17 @@ function renderMail(data) {
       <span>第 ${data.pagination.page} 页 · 共 ${data.pagination.total} 封</span>
       <button class="btn btn-secondary" type="button" data-mail-page="${data.pagination.page + 1}" ${data.pagination.hasMore ? '' : 'disabled'}><span>下一页</span><i data-lucide="chevron-right" class="icon"></i></button>
     </div>` : '<p class="muted result-empty">该子邮箱最近 7 天内没有已归属邮件。</p>'}`;
+}
+
+function renderMail(data) {
+  mailResultBox.classList.remove('hidden');
+  mailResultBox.innerHTML = data.mode === 'code' ? renderMailCode(data) : renderMailText(data);
   lucide.createIcons();
   mailResultBox.querySelectorAll('[data-copy-mail-code]').forEach((button) => button.addEventListener('click', () => {
-    const message = data.messages.find((item) => String(item.id) === button.dataset.copyMailCode);
+    const message = data.mode === 'code' ? data.message : data.messages.find((item) => String(item.id) === button.dataset.copyMailCode);
     if (message?.code) copyCode(message.code, '邮箱验证码已复制');
   }));
+  if (data.mode === 'code') return;
   mailResultBox.querySelectorAll('[data-open-mail]').forEach((button) => button.addEventListener('click', () => openMailMessage(button)));
   mailResultBox.querySelectorAll('[data-mail-page]').forEach((button) => button.addEventListener('click', () => queryMailPage(Number(button.dataset.mailPage))));
 }

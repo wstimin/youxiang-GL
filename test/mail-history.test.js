@@ -41,12 +41,20 @@ test('cleanup separates code expiry from mail retention', () => {
 test('single-token query lists scoped mail and protects full body lookup', () => {
   const listRoute = server.slice(server.indexOf("app.post('/api/query'"), server.indexOf("app.post('/api/query/message'"));
   const bodyRoute = server.slice(server.indexOf("app.post('/api/query/message'"), server.indexOf("app.post('/api/query/batch'"));
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS app_settings/);
+  assert.match(schema, /VALUES \('verification_mode_enabled', 'true'\)/);
+  assert.match(listRoute, /verificationModeEnabled\(\)/);
+  assert.match(listRoute, /mode: 'code'/);
+  assert.match(listRoute, /expires_at > NOW\(\) AND code_encrypted IS NOT NULL/);
+  assert.match(listRoute, /mode: 'text'/);
   assert.match(listRoute, /WHERE alias_id = \$1 AND mail_expires_at > NOW\(\)/);
   assert.match(listRoute, /LIMIT \$2 OFFSET \$3/);
   assert.match(listRoute, /pagination: \{ page, pageSize, total, hasMore/);
   assert.match(listRoute, /bodyPreview:/);
   assert.doesNotMatch(listRoute, /body_text_encrypted:/);
   assert.match(bodyRoute, /WHERE id = \$1 AND alias_id = \$2 AND mail_expires_at > NOW\(\)/);
+  assert.match(bodyRoute, /verificationModeEnabled\(\)/);
+  assert.match(bodyRoute, /status\(403\)/);
   assert.match(bodyRoute, /mailMessageResponse\(result\.rows\[0\], true\)/);
   assert.doesNotMatch(bodyRoute, /token_encrypted/);
   const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/totp'"));
@@ -54,8 +62,11 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
 });
 
 test('public mail UI renders plain text bodies and seven-day history', () => {
-  assert.match(html, /查询 7 天内全部邮件/);
-  assert.match(html, /该子邮箱 7 天内的邮件/);
+  assert.match(html, /验证码或 7 天邮件/);
+  assert.match(html, /按管理员设置返回最新验证码或最近 7 天邮件/);
+  assert.match(script, /data\.mode === 'code'/);
+  assert.match(script, /function renderMailCode/);
+  assert.match(script, /function renderMailText/);
   assert.match(script, /request\('\/api\/query\/message'/);
   assert.match(script, /body\.textContent = data\.message\.body/);
   assert.match(script, /className = 'mail-body'/);

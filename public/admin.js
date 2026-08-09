@@ -170,6 +170,12 @@ function render() {
 
   document.querySelector('#totp-status').textContent = data.admin.totpEnabled ? 'TOTP 动态验证码已启用。' : 'TOTP 尚未启用，管理员登录目前只使用密码。';
   document.querySelector('#setup-totp').classList.toggle('hidden', data.admin.totpEnabled);
+  const verificationMode = document.querySelector('#verification-mode-enabled');
+  const verificationModeStatus = document.querySelector('#verification-mode-status');
+  verificationMode.checked = data.settings.verificationModeEnabled;
+  verificationModeStatus.textContent = verificationMode.checked
+    ? '单个查询返回最新有效验证码'
+    : '单个查询返回最近 7 天文本邮件';
   bindRowActions();
   lucide.createIcons();
 }
@@ -424,6 +430,20 @@ document.querySelectorAll('.nav button[data-section]').forEach((button) => butto
 }));
 
 document.querySelector('#refresh').addEventListener('click', loadState);
+document.querySelector('#verification-mode-enabled').addEventListener('change', async (event) => {
+  const enabled = event.target.checked;
+  event.target.disabled = true;
+  try {
+    await api('/api/admin/settings/verification-mode', { method: 'POST', body: JSON.stringify({ enabled }) });
+    await loadState();
+    toastMessage(enabled ? '单个查询已切换为验证码方式' : '单个查询已切换为文本方式');
+  } catch (error) {
+    event.target.checked = !enabled;
+    toastMessage(error.message);
+  } finally {
+    event.target.disabled = false;
+  }
+});
 ['alias-search', 'totp-search', 'message-search'].forEach((id) => {
   document.querySelector(`#${id}`).addEventListener('input', () => state.data && render());
 });

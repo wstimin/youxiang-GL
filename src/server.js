@@ -117,6 +117,13 @@ async function findPublicAlias(token) {
   return result.rows[0] || null;
 }
 
+async function verificationModeEnabled() {
+  const result = await pool.query(
+    `SELECT value FROM app_settings WHERE key = 'verification_mode_enabled'`
+  );
+  return result.rows[0]?.value !== 'false';
+}
+
 function mailMessageResponse(message, includeBody = false) {
   const codeActive = message.code_encrypted && new Date(message.expires_at).getTime() > Date.now();
   return {
@@ -311,6 +318,24 @@ app.post('/api/query', async (req, res, next) => {
       await audit({ actor: 'public', action: 'query_failed', ip, detail: 'unknown token' });
       return res.status(401).json({ error: '查询密钥无效或已失效' });
     }
+    if (await verificationModeEnabled()) {
+      const messageResult = await pool.query(
+        `SELECT id, sender, subject, code_encrypted, code_masked,
+                confidence, received_at, expires_at, mail_expires_at
+         FROM verification_messages
+         WHERE alias_id = $1 AND mail_expires_at > NOW()
+           AND expires_at > NOW() AND code_encrypted IS NOT NULL
+         ORDER BY received_at DESC, id DESC LIMIT 1`,
+        [alias.id]
+      );
+      await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=code' });
+      return res.json({
+        mode: 'code',
+        alias: maskEmail(alias.address),
+        label: alias.label,
+        message: messageResult.rowCount ? mailMessageResponse(messageResult.rows[0]) : null
+      });
+    }
     const page = Math.max(1, Math.min(1000000, Number.parseInt(req.body.page, 10) || 1));
     const pageSize = Math.max(1, Math.min(50, Number.parseInt(req.body.pageSize, 10) || mailPageSize));
     const offset = (page - 1) * pageSize;
@@ -328,7 +353,7 @@ app.post('/api/query', async (req, res, next) => {
        ORDER BY received_at DESC, id DESC LIMIT $2 OFFSET $3`,
       [alias.id, pageSize, offset]
     );
-    await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip });
+    await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=text' });
     const total = countResult.rows[0]?.total || 0;
     const messages = messageResult.rows.map((row) => ({
       ...mailMessageResponse(row),
@@ -336,6 +361,7 @@ app.post('/api/query', async (req, res, next) => {
     }));
     const message = messages.find((item) => item.code && new Date(item.expiresAt).getTime() > Date.now()) || null;
     return res.json({
+      mode: 'text',
       alias: maskEmail(alias.address),
       label: alias.label,
       message,
@@ -354,6 +380,9 @@ app.post('/api/query/message', async (req, res, next) => {
     return res.status(429).json({ error: '请求过于频繁，请稍后重试' });
   }
   try {
+    if (await verificationModeEnabled()) {
+      return res.status(403).json({ error: '当前已启用验证码方式，邮件正文查询已关闭' });
+    }
     const token = String(req.body.token || '').trim();
     const messageId = Number.parseInt(req.body.messageId, 10);
     if (token.length < 20 || token.length > 200 || !Number.isSafeInteger(messageId) || messageId < 1) {
@@ -537,7 +566,7 @@ app.post('/api/admin/login/totp', adminNetwork, async (req, res, next) => {
 app.get('/api/admin/state', ...adminApi(async (req, res) => {
   noStore(res);
   const currentSessionHash = digest(req.sessionToken);
-  const [accounts, aliases, totpEntries, recent, unmatched, auditResult, metrics, runtime, sessions] = await Promise.all([
+  const [accounts, aliases, totpEntries, recent, unmatched, auditResult, metrics, runtime, sessions, codeMode] = await Promise.all([
     pool.query(`SELECT id, email, provider, host, port, secure, enabled, status, last_error, last_synced_at, sync_requested_at, created_at FROM mail_accounts ORDER BY id`),
     pool.query(`SELECT a.id, a.mail_account_id, a.address, a.label, a.enabled, a.token_hint, a.token_expires_at, a.created_at,
       (a.token_encrypted IS NOT NULL) AS token_recoverable,
@@ -562,11 +591,13 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
       [String(workerFreshSeconds)]
     ),
     pool.query(`SELECT session_id, user_agent, created_at, expires_at, (id_hash = $1) AS current
-      FROM sessions WHERE user_id = $2 AND expires_at > NOW() ORDER BY created_at DESC`, [currentSessionHash, req.admin.id])
+      FROM sessions WHERE user_id = $2 AND expires_at > NOW() ORDER BY created_at DESC`, [currentSessionHash, req.admin.id]),
+    verificationModeEnabled()
   ]);
   res.json({
     csrfToken: req.admin.csrf_token,
     admin: { email: req.admin.email, totpEnabled: Boolean(req.admin.totp_secret_encrypted) },
+    settings: { verificationModeEnabled: codeMode },
     accounts: accounts.rows,
     aliases: aliases.rows,
     totpEntries: totpEntries.rows,
@@ -577,6 +608,25 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
     runtime: runtime.rows,
     sessions: sessions.rows
   });
+}));
+
+app.post('/api/admin/settings/verification-mode', ...adminApi(async (req, res) => {
+  if (typeof req.body.enabled !== 'boolean') {
+    return res.status(400).json({ error: '验证码方式开关参数无效' });
+  }
+  const enabled = req.body.enabled;
+  await pool.query(
+    `INSERT INTO app_settings(key, value, updated_at)
+     VALUES ('verification_mode_enabled', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [String(enabled)]
+  );
+  await audit({
+    actor: `user:${req.admin.id}`,
+    action: enabled ? 'verification_mode_enabled' : 'verification_mode_disabled',
+    ip: extractClientIp(req)
+  });
+  res.json({ ok: true, verificationModeEnabled: enabled });
 }));
 
 app.post('/api/admin/mail-account/:id/sync', ...adminApi(async (req, res) => {

@@ -93,9 +93,9 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.match(html, />转换 2FA</);
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.match(html, /class="output-surface totp-output-surface"/);
-  assert.match(html, /styles\.css\?v=20260809-6/);
-  assert.match(html, /vendor\/lucide\.js\?v=20260809-6/);
-  assert.match(html, /query\.js\?v=20260809-6/);
+  assert.match(html, /styles\.css\?v=20260809-7/);
+  assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
+  assert.match(html, /query\.js\?v=20260809-7/);
   assert.match(html, /id="totp-tab"[\s\S]*?data-lucide="fingerprint"/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);

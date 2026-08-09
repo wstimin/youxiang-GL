@@ -163,6 +163,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs(created_at DESC);
 
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO app_settings(key, value)
+VALUES ('verification_mode_enabled', 'true')
+ON CONFLICT (key) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS runtime_status (
   service TEXT PRIMARY KEY,
   status TEXT NOT NULL DEFAULT 'starting',
