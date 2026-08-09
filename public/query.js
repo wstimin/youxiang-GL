@@ -1,6 +1,5 @@
 'use strict';
 
-const accessView = document.querySelector('#access-view');
 const inboxWorkspace = document.querySelector('#inbox-workspace');
 const mailForm = document.querySelector('#mail-query-form');
 const mailTokenInput = document.querySelector('#mail-token');
@@ -33,11 +32,13 @@ const mailBatchForm = document.querySelector('#mail-batch-form');
 const mailBatchTokensInput = document.querySelector('#mail-batch-tokens');
 const mailBatchCount = document.querySelector('#mail-batch-count');
 const mailBatchErrorBox = document.querySelector('#mail-batch-error');
+const mailBatchPlaceholder = document.querySelector('#mail-batch-placeholder');
 const mailBatchResultBox = document.querySelector('#mail-batch-result');
 const batchInboxForm = document.querySelector('#batch-inbox-form');
 const batchInboxTokensInput = document.querySelector('#batch-inbox-tokens');
 const batchInboxCount = document.querySelector('#batch-inbox-count');
 const batchInboxErrorBox = document.querySelector('#batch-inbox-error');
+const batchInboxPlaceholder = document.querySelector('#batch-inbox-placeholder');
 const batchInboxResultBox = document.querySelector('#batch-inbox-result');
 const batchInboxSummary = document.querySelector('#batch-inbox-summary');
 const batchInboxSearchInput = document.querySelector('#batch-inbox-search');
@@ -56,6 +57,7 @@ const totpSecretInput = document.querySelector('#totp-secret');
 const totpQrFileInput = document.querySelector('#totp-qr-file');
 const totpQrUploadButton = document.querySelector('#totp-qr-upload');
 const totpErrorBox = document.querySelector('#totp-query-error');
+const totpPlaceholder = document.querySelector('#totp-placeholder');
 const totpResultBox = document.querySelector('#totp-result');
 const toast = document.querySelector('#toast');
 
@@ -210,7 +212,10 @@ function setPublicView(view) {
   totpView.classList.toggle('hidden', view !== 'totp');
   inboxWorkspace.dataset.view = view;
   document.querySelectorAll('[data-public-view]').forEach((button) => {
-    button.classList.toggle('active', button.dataset.publicView === view && (view !== 'mail' || button.dataset.mailFilter === mailState.filter));
+    const isMailFilter = Boolean(button.dataset.mailFilter);
+    const active = button.dataset.publicView === view && (!isMailFilter || button.dataset.mailFilter === mailState.filter);
+    button.classList.toggle('active', active);
+    if (isMailFilter) button.setAttribute('aria-pressed', String(active));
   });
   if (view !== 'batch') clearTimeout(mailBatchRefreshTimer);
   if (view === 'batch' && activeMailBatchTokens.length && mailBatchResultBox.innerHTML) {
@@ -222,20 +227,9 @@ function setPublicView(view) {
 
 function selectAccessMail(filter = 'all') {
   mailState.filter = filter;
-  document.body.classList.remove('public-app-open');
-  accessView.classList.remove('hidden');
-  inboxWorkspace.classList.add('hidden');
-  document.querySelectorAll('[data-access-view]').forEach((button) => {
-    button.classList.toggle('active', button.dataset.accessView === 'mail' && button.dataset.mailFilter === filter);
-  });
+  setPublicView('mail');
+  mailView.classList.add('mail-locked');
   mailTokenInput.focus();
-}
-
-function openPublicTool(view) {
-  document.body.classList.add('public-app-open');
-  accessView.classList.add('hidden');
-  inboxWorkspace.classList.remove('hidden');
-  setPublicView(view);
 }
 
 function resetMailDetail() {
@@ -267,7 +261,18 @@ function renderCodeMessage(message) {
     renderIcons();
     return;
   }
-  mailDetail.innerHTML = `<div class="public-code-result"><span class="pane-kicker">LATEST VERIFICATION CODE</span><strong class="public-code-result-value">${escapeHtml(message.code || message.codeMasked || '------')}</strong><span>${escapeHtml(message.sender || '未知发件人')} · ${escapeHtml(formatMailDate(message.receivedAt, true))}</span><button class="btn btn-secondary" type="button" data-copy-code-mode><i data-lucide="copy" class="icon"></i><span>复制验证码</span></button></div>`;
+  mailDetail.innerHTML = `<header class="public-detail-head">
+    <button class="public-mobile-back" type="button" title="返回邮件列表" aria-label="返回邮件列表"><i data-lucide="arrow-left"></i></button>
+    <div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(message.subject || '验证码邮件')}</h1></div>
+    ${message.code ? '<button class="btn btn-secondary" type="button" data-copy-code-mode><i data-lucide="copy" class="icon"></i><span>复制验证码</span></button>' : ''}
+  </header>
+  <dl class="public-detail-meta">
+    <div><dt>发件人</dt><dd>${escapeHtml(message.sender || '未知发件人')}</dd></div>
+    <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(message.receivedAt, true))}</dd></div>
+    <div class="public-detail-code-cell"><dt>验证码</dt><dd><strong class="public-detail-code">${escapeHtml(message.code || message.codeMasked || '------')}</strong></dd></div>
+  </dl>
+  <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件摘要</span></div><div class="public-code-summary">${escapeHtml(message.bodyPreview || '当前安全模式只显示最新有效验证码。')}</div></section>`;
+  mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => mailDetail.classList.remove('mobile-visible'));
   const copyButton = mailDetail.querySelector('[data-copy-code-mode]');
   if (copyButton && message.code) copyButton.addEventListener('click', () => copyCode(message.code, '验证码已复制'));
   renderIcons();
@@ -312,7 +317,6 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     mailMessageList.insertAdjacentHTML('beforeend', displayMessages.map(renderMessageItem).join(''));
     bindMessageItems(displayMessages);
     mailState.cursor = mailState.mode === 'code' ? null : (data.nextCursor || null);
-    if (mailState.mode === 'code') renderCodeMessage(data.message || displayMessages[0] || null);
     if (reset) {
       mailState.latestId = Number(messages[0]?.id || 0) || null;
       newMailBanner.classList.add('hidden');
@@ -321,9 +325,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     setRefreshLabel();
     scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || 60));
     if (unlock) {
-      document.body.classList.add('public-app-open');
-      accessView.classList.add('hidden');
-      inboxWorkspace.classList.remove('hidden');
+      mailView.classList.remove('mail-locked');
       setPublicView('mail');
     }
     renderIcons();
@@ -395,6 +397,7 @@ function renderMailBatch(data) {
   const received = data.results.filter((item) => item.status === 'received').length;
   const waiting = data.results.filter((item) => item.status === 'waiting').length;
   const invalid = data.results.filter((item) => item.status === 'invalid').length;
+  mailBatchPlaceholder.classList.add('hidden');
   mailBatchResultBox.classList.remove('hidden');
   mailBatchResultBox.innerHTML = `<div class="result-meta batch-result-meta"><strong>查询结果</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
     <div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
@@ -513,6 +516,7 @@ async function loadBatchInbox({ preserveExpanded = true } = {}) {
       if (initial) batchInboxState.expanded.add(initial.index);
     }
     batchInboxState.initialized = true;
+    batchInboxPlaceholder.classList.add('hidden');
     batchInboxResultBox.classList.remove('hidden');
     batchInboxForm.classList.add('hidden');
     renderBatchInbox();
@@ -586,6 +590,7 @@ function renderTotpAvatar(issuer) {
 
 function renderTotps() {
   const entries = [...activeTotps.values()];
+  totpPlaceholder.classList.toggle('hidden', Boolean(entries.length));
   totpResultBox.classList.toggle('hidden', !entries.length);
   if (!entries.length) {
     clearInterval(totpCountdownTimer);
@@ -662,14 +667,14 @@ async function refreshTotps() {
 
 document.querySelectorAll('[data-public-view]').forEach((button) => button.addEventListener('click', async () => {
   if (button.dataset.publicView === 'mail') {
-    const filter = button.dataset.mailFilter || 'all';
+    const filter = button.dataset.mailFilter || mailState.filter || 'all';
     if (!mailState.token) {
       selectAccessMail(filter);
       return;
     }
     const changed = mailState.filter !== filter;
     mailState.filter = filter;
-    mailListTitle.textContent = filter === 'code' ? '验证码邮件' : '单邮箱收件箱';
+    mailListTitle.textContent = '单邮箱收件箱';
     setPublicView('mail');
     if (changed) {
       try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
@@ -679,14 +684,7 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
   setPublicView(button.dataset.publicView);
 }));
 
-document.querySelectorAll('[data-access-view]').forEach((button) => button.addEventListener('click', () => {
-  const view = button.dataset.accessView;
-  if (view === 'mail') {
-    selectAccessMail(button.dataset.mailFilter || 'all');
-    return;
-  }
-  openPublicTool(view);
-}));
+selectAccessMail('all');
 
 mailForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -831,6 +829,7 @@ reimportBatchInboxButton.addEventListener('click', () => {
   batchInboxSearchInput.value = '';
   clearBatchInboxSearchButton.classList.add('hidden');
   batchInboxResultBox.classList.add('hidden');
+  batchInboxPlaceholder.classList.remove('hidden');
   batchInboxErrorBox.textContent = '';
   batchInboxStatus.textContent = '';
   batchInboxForm.classList.remove('hidden');

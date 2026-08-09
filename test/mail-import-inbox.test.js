@@ -73,17 +73,18 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   );
   const publicSurface = `${html}\n${publicQuery}\n${listRoute}\n${detailRoute}`;
 
-  assert.match(html, /class="public-app hidden"/);
+  assert.match(html, /<body class="public-shell public-app-open">/);
+  assert.match(html, /id="inbox-workspace" class="public-app"/);
   assert.match(html, /class="public-app-bar"/);
-  assert.match(html, /class="access-app-bar"/);
-  assert.match(html, /class="access-content"/);
-  assert.doesNotMatch(html, /access-workspace|access-panel/);
+  assert.match(html, /id="mail-access-panel" class="mail-access-panel"/);
+  assert.match(html, /id="mail-access-panel"[\s\S]*?id="mail-query-form"/);
+  assert.doesNotMatch(html, /id="access-view"|access-app-bar|access-content|access-mail-preview/);
   assert.match(html, /单邮箱收件箱/);
   assert.match(styles, /\.public-shell\.public-app-open \{ display: block; height: 100vh;/);
   assert.match(styles, /\.public-app \{ width: 100%; height: 100%;/);
-  assert.match(styles, /\.access-view \{ width: 100%; min-height: 100vh;/);
-  assert.match(styles, /\.access-entry-inner \{ width: min\(560px, 100%\);/);
-  assert.doesNotMatch(styles, /\.access-workspace|\.access-panel/);
+  assert.match(styles, /\.mail-access-panel \{ display: none; \}/);
+  assert.match(styles, /\.public-mail-page\.mail-locked \.mail-access-panel/);
+  assert.doesNotMatch(styles, /\.access-view|\.access-app-bar|\.access-content|\.access-mail-preview/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
   assert.match(styles, /\.public-mail-page \{ width: 100%; height: 100%; display: grid;/);
@@ -93,6 +94,9 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(publicQuery, /cursor: reset \? null : mailState\.cursor/);
   assert.match(publicQuery, /request\('\/api\/query\/message'/);
   assert.match(publicQuery, /mailState\.token/);
+  assert.match(publicQuery, /function selectAccessMail\(filter = 'all'\)/);
+  assert.match(publicQuery, /mailView\.classList\.add\('mail-locked'\)/);
+  assert.doesNotMatch(publicQuery, /accessView|openPublicTool|data-access-view/);
   assert.match(publicQuery, /mailboxHealthDot/);
   assert.doesNotMatch(listRoute, /body_text_encrypted/);
   assert.match(detailRoute, /body_text_encrypted/);
@@ -127,7 +131,6 @@ test('batch inbox searches seven-day mail and keeps results grouped by masked ma
   assert.match(batchInboxRoute, /mailbox\.matchedMessages = stats\.matched_count/);
   assert.match(batchInboxRoute, /nextCursor:/);
   assert.doesNotMatch(batchInboxRoute, /body_text_encrypted|recipients_encrypted|token_encrypted/);
-  assert.match(html, /data-access-view="batch-inbox"/);
   assert.match(html, /data-public-view="batch-inbox"/);
   assert.match(html, /id="batch-inbox-search"/);
   assert.match(html, /管理员需关闭“验证码方式”后使用/);

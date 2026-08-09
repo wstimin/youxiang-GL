@@ -87,8 +87,8 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   const script = fs.readFileSync('public/query.js', 'utf8');
   assert.match(html, /data-public-view="mail"/);
   assert.match(html, /data-public-view="totp"/);
-  assert.match(html, /button[^>]*data-access-view="batch"/);
-  assert.match(html, /button[^>]*data-access-view="totp"/);
+  assert.match(html, /button[^>]*data-public-view="batch"/);
+  assert.match(html, /button[^>]*data-public-view="totp"/);
   assert.match(html, /id="mail-query-form"/);
   assert.match(html, /id="totp-query-form"/);
   assert.match(html, /id="totp-secret"/);
@@ -109,8 +109,8 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.match(script, /const activeTotps = new Map\(\)/);
   assert.match(script, /function renderTotpAvatar/);
   assert.match(script, /class="totp-entry"/);
-  assert.match(script, /document\.querySelectorAll\('\[data-access-view\]'\)/);
-  assert.match(script, /openPublicTool\(view\)/);
+  assert.doesNotMatch(script, /document\.querySelectorAll\('\[data-access-view\]'\)/);
+  assert.doesNotMatch(script, /openPublicTool\(view\)/);
   assert.match(script, /if \(!mailState\.token\) \{[\s\S]*?selectAccessMail\(filter\)/);
 });
 
