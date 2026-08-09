@@ -66,7 +66,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
 
 test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(html, /验证码或 7 天邮件/);
-  assert.match(html, /按管理员设置返回最新验证码或最近 7 天邮件/);
+  assert.match(html, /请在下方输入邮件查询密钥。/);
   assert.match(script, /data\.mode === 'code'/);
   assert.match(script, /function renderMailCode/);
   assert.match(script, /function renderMailText/);
