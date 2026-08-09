@@ -647,6 +647,141 @@ app.post('/api/query/batch', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post('/api/query/batch-inbox', async (req, res, next) => {
+  noStore(res);
+  const ip = extractClientIp(req);
+  const limit = rateLimit(`query-batch-inbox:${ip}`, batchQueryLimit, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    res.set('Retry-After', String(limit.retryAfter));
+    return res.status(429).json({ error: `鎵归噺鏀朵欢绠查询过于频繁，请在${limit.retryAfter}秒后重试` });
+  }
+  try {
+    const failure = await failureGuard('query_batch_inbox_failed', ip, queryFailureLimit);
+    if (!failure.allowed) {
+      res.set('Retry-After', String(failure.retryAfter));
+      return res.status(429).json({ error: `无效查询密钥过多，请在${failure.retryAfter}秒后重试` });
+    }
+    if (!Array.isArray(req.body.tokens) || !req.body.tokens.length) {
+      return res.status(400).json({ error: '请至少输入一个查询密钥' });
+    }
+    if (req.body.tokens.length > 50) {
+      return res.status(400).json({ error: '每次最多查询50个密钥' });
+    }
+    if (await verificationModeEnabled()) {
+      return res.status(403).json({ error: '当前查询模式仅允许查看最新有效验证码' });
+    }
+
+    const tokens = req.body.tokens.map((value) => String(value || '').trim());
+    const keyword = String(req.body.keyword || '').trim().slice(0, 120);
+    const requestedLimit = Number.parseInt(req.body.limitPerMailbox, 10);
+    const limitPerMailbox = Math.max(1, Math.min(50, requestedLimit || 20));
+    const cursor = parsePublicCursor(req.body.cursor);
+    if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
+    if (cursor.receivedAt && tokens.length !== 1) {
+      return res.status(400).json({ error: '批量续页时每次只能加载一个邮箱' });
+    }
+    const tokenDigests = tokens.map((token) => token.length >= 20 && token.length <= 200 ? digest(token) : null);
+    const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
+    const matched = searchableDigests.length ? await pool.query(
+      `SELECT a.id, a.address, a.token_digest,
+              ma.enabled AS account_enabled, ma.status AS account_status,
+              ma.last_synced_at
+       FROM aliases a
+       JOIN mail_accounts ma ON ma.id = a.mail_account_id
+       WHERE a.token_digest = ANY($1::text[]) AND a.enabled = TRUE
+         AND (a.token_expires_at IS NULL OR a.token_expires_at > NOW())`,
+      [searchableDigests]
+    ) : { rows: [] };
+    const aliasesByDigest = new Map(matched.rows.map((row) => [row.token_digest, row]));
+    const aliases = [...new Map(matched.rows.map((row) => [row.id, row])).values()];
+    const aliasIds = aliases.map((alias) => alias.id);
+    const runtimeResult = await pool.query(
+      `SELECT status,
+              heartbeat_at > NOW() - ($1::text || ' seconds')::interval AS fresh
+       FROM runtime_status
+       WHERE service = 'worker'`,
+      [String(workerFreshSeconds)]
+    );
+    const runtime = runtimeResult.rows[0];
+
+    let messageRows = [];
+    let statsRows = [];
+    if (aliasIds.length) {
+      const [messagesResult, statsResult] = await Promise.all([
+        pool.query(
+          `SELECT id, alias_id, sender, subject, body_preview, code_encrypted,
+                  code_masked, confidence, code_expires_at, received_at
+           FROM (
+             SELECT id, alias_id, sender, subject, body_preview, code_encrypted,
+                    code_masked, confidence, code_expires_at, received_at,
+                    ROW_NUMBER() OVER (PARTITION BY alias_id ORDER BY received_at DESC, id DESC) AS row_number
+             FROM mail_messages
+             WHERE alias_id = ANY($1::bigint[]) AND mail_expires_at > NOW()
+               AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
+                    OR body_preview ILIKE '%' || $2 || '%')
+               AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
+           ) recent
+           WHERE row_number <= $3::int + 1
+           ORDER BY alias_id, received_at DESC, id DESC`,
+          [aliasIds, keyword, limitPerMailbox, cursor.receivedAt, cursor.id]
+        ),
+        pool.query(
+          `SELECT alias_id,
+                  COUNT(*)::int AS total_count,
+                  COUNT(*) FILTER (
+                    WHERE $2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
+                          OR body_preview ILIKE '%' || $2 || '%'
+                  )::int AS matched_count,
+                  COUNT(*) FILTER (
+                    WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
+                  )::int AS code_count,
+                  MAX(received_at) AS latest_received_at
+           FROM mail_messages
+           WHERE alias_id = ANY($1::bigint[]) AND mail_expires_at > NOW()
+           GROUP BY alias_id`,
+          [aliasIds, keyword]
+        )
+      ]);
+      messageRows = messagesResult.rows;
+      statsRows = statsResult.rows;
+    }
+    const messageRowsByAlias = new Map();
+    for (const row of messageRows) {
+      if (!messageRowsByAlias.has(row.alias_id)) messageRowsByAlias.set(row.alias_id, []);
+      messageRowsByAlias.get(row.alias_id).push(row);
+    }
+    const statsByAlias = new Map(statsRows.map((row) => [row.alias_id, row]));
+    const results = tokens.map((_token, index) => {
+      const alias = aliasesByDigest.get(tokenDigests[index]);
+      if (!alias) return { index, status: 'invalid', mailbox: null, messages: [], nextCursor: null };
+      const stats = statsByAlias.get(alias.id) || {
+        total_count: 0, matched_count: 0, code_count: 0, latest_received_at: null
+      };
+      const aliasMessageRows = messageRowsByAlias.get(alias.id) || [];
+      const visibleRows = aliasMessageRows.slice(0, limitPerMailbox);
+      const messages = visibleRows.map(publicMailMessageResponse);
+      const lastRow = visibleRows.at(-1);
+      const mailbox = publicMailboxResponse(alias, stats, runtime);
+      mailbox.matchedMessages = stats.matched_count;
+      return {
+        index,
+        status: messages.length ? 'ready' : 'empty',
+        mailbox,
+        messages,
+        nextCursor: aliasMessageRows.length > limitPerMailbox && lastRow ? makePublicCursor(lastRow) : null
+      };
+    });
+    const invalidCount = results.filter((item) => item.status === 'invalid').length;
+    await audit({
+      actor: 'public',
+      action: invalidCount === results.length ? 'query_batch_inbox_failed' : 'query_batch_inbox_success',
+      ip,
+      detail: `requested=${results.length};invalid=${invalidCount};keyword=${keyword ? 'yes' : 'no'}`
+    });
+    return res.json({ results, keyword, limitPerMailbox });
+  } catch (error) { next(error); }
+});
+
 app.post('/api/query/totp', async (req, res, next) => {
   noStore(res);
   const ip = extractClientIp(req);

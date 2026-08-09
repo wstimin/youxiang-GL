@@ -69,7 +69,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.match(bodyRoute, /query_message_blocked/);
   assert.match(bodyRoute, /status\(403\)/);
   assert.doesNotMatch(bodyRoute, /token_encrypted/);
-  const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/totp'"));
+  const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/batch-inbox'"));
   assert.match(batchRoute, /SELECT id, sender, subject, code_encrypted, received_at, expires_at, mail_expires_at/);
 });
 

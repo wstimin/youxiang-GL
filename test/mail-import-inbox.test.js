@@ -92,7 +92,40 @@ test('public inbox is three-column, cursor-paged, and hides commercial account s
   assert.match(detailRoute, /message\.code = message\.hasCode \? decrypt\(row\.code_encrypted\) : null/);
   const batchRoute = server.slice(
     server.indexOf("app.post('/api/query/batch'"),
-    server.indexOf("app.post('/api/query/totp'")
+    server.indexOf("app.post('/api/query/batch-inbox'")
   );
   assert.doesNotMatch(batchRoute, /a\.address|a\.label|alias:\s*maskEmail|label:\s*alias/);
+});
+
+test('batch inbox searches seven-day mail and keeps results grouped by masked mailbox', () => {
+  const html = fs.readFileSync('public/index.html', 'utf8');
+  const styles = fs.readFileSync('public/styles.css', 'utf8');
+  const batchInboxRoute = server.slice(
+    server.indexOf("app.post('/api/query/batch-inbox'"),
+    server.indexOf("app.post('/api/query/totp'")
+  );
+
+  assert.match(batchInboxRoute, /req\.body\.tokens\.length > 50/);
+  assert.match(batchInboxRoute, /a\.token_digest = ANY\(\$1::text\[\]\)/);
+  assert.match(batchInboxRoute, /mail_expires_at > NOW\(\)/);
+  assert.match(batchInboxRoute, /sender ILIKE[\s\S]*subject ILIKE[\s\S]*body_preview ILIKE/);
+  assert.match(batchInboxRoute, /ROW_NUMBER\(\) OVER \(PARTITION BY alias_id/);
+  assert.match(batchInboxRoute, /row_number <= \$3::int \+ 1/);
+  assert.match(batchInboxRoute, /verificationModeEnabled\(\)/);
+  assert.match(batchInboxRoute, /mailbox = publicMailboxResponse\(alias, stats, runtime\)/);
+  assert.match(batchInboxRoute, /mailbox\.matchedMessages = stats\.matched_count/);
+  assert.match(batchInboxRoute, /nextCursor:/);
+  assert.doesNotMatch(batchInboxRoute, /body_text_encrypted|recipients_encrypted|token_encrypted/);
+  assert.match(html, /data-access-view="batch-inbox"/);
+  assert.match(html, /data-public-view="batch-inbox"/);
+  assert.match(html, /id="batch-inbox-search"/);
+  assert.match(html, /管理员需关闭“验证码方式”后使用/);
+  assert.match(html, /id="batch-inbox-groups"/);
+  assert.match(publicQuery, /request\('\/api\/query\/batch-inbox'/);
+  assert.match(publicQuery, /data-batch-inbox-toggle/);
+  assert.match(publicQuery, /batchInboxState\.expanded/);
+  assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
+  assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
+  assert.match(styles, /\.batch-inbox-group\.expanded \.batch-inbox-chevron/);
+  assert.match(styles, /grid-template-columns: repeat\(5, 1fr\)/);
 });

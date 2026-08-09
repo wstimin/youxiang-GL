@@ -413,6 +413,70 @@ a { color: inherit; }
 .public-tool-form > .btn { justify-self: start; min-width: 150px; }
 .public-totp-layout { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: minmax(320px, .9fr) minmax(360px, 1.1fr); gap: 18px; align-items: start; }
 .public-totp-layout .public-tool-form, .public-totp-layout .public-tool-result { width: 100%; margin-top: 22px; }
+.batch-inbox-view { padding-bottom: 42px; }
+.batch-inbox-form { max-width: 920px; }
+.batch-inbox-result { width: 100%; max-width: 1100px; margin: 22px auto 0; padding: 0; border: 0; background: transparent; }
+.batch-inbox-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); background: white; }
+.batch-inbox-summary > div { min-width: 0; display: grid; gap: 4px; padding: 15px 17px; border-right: 1px solid var(--line); }
+.batch-inbox-summary > div:last-child { border-right: 0; }
+.batch-inbox-summary span { color: var(--muted); font-size: 11px; }
+.batch-inbox-summary strong { color: var(--brand-dark); font-size: 22px; }
+.batch-inbox-toolbar { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.batch-inbox-search { min-width: 0; height: 42px; position: relative; flex: 1; }
+.batch-inbox-search > .icon { position: absolute; left: 12px; top: 12px; color: var(--muted); pointer-events: none; }
+.batch-inbox-search input { width: 100%; height: 42px; padding: 0 40px; border: 1px solid var(--line); border-radius: 6px; outline: none; background: white; }
+.batch-inbox-search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(8,127,120,.1); }
+.batch-inbox-search button { width: 34px; min-height: 34px; position: absolute; right: 4px; top: 4px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; }
+.batch-inbox-search button svg { width: 16px; height: 16px; }
+.batch-inbox-actions { display: flex; gap: 7px; flex: 0 0 auto; }
+.batch-inbox-actions .btn:not(.btn-icon) { min-height: 40px; padding-inline: 11px; font-size: 12px; }
+.batch-inbox-actions .icon { width: 15px; height: 15px; }
+.batch-inbox-groups { display: grid; gap: 9px; margin-top: 10px; }
+.batch-inbox-group { border: 1px solid var(--line); background: white; }
+.batch-inbox-group-toggle { width: 100%; min-width: 0; min-height: 69px; padding: 10px 13px; border: 0; background: white; color: inherit; display: flex; align-items: center; gap: 10px; text-align: left; }
+.batch-inbox-group-toggle:hover, .batch-inbox-group.expanded .batch-inbox-group-toggle { background: #f5faf8; }
+.batch-inbox-group-index { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 6px; background: var(--surface-3); color: var(--muted); font-size: 11px; font-weight: 800; }
+.batch-inbox-group-identity { min-width: 0; display: grid; gap: 4px; flex: 1; }
+.batch-inbox-group-identity strong, .batch-inbox-group-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-inbox-group-identity strong { font-size: 13px; }
+.batch-inbox-group-identity small { color: var(--muted); font-size: 11px; }
+.batch-inbox-group-state { flex: 0 0 auto; }
+.batch-inbox-chevron { width: 17px; height: 17px; flex: 0 0 auto; color: var(--muted); transition: transform .16s ease; }
+.batch-inbox-group.expanded .batch-inbox-chevron { transform: rotate(180deg); }
+.batch-inbox-panel { border-top: 1px solid var(--line); }
+.batch-inbox-message-list { display: grid; }
+.batch-inbox-message { width: 100%; min-width: 0; padding: 13px 15px; border: 0; border-bottom: 1px solid var(--line); background: white; color: inherit; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; }
+.batch-inbox-message:last-child { border-bottom: 0; }
+.batch-inbox-message:hover { background: #f7fbfa; }
+.batch-inbox-message-avatar { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 6px; background: #e8efed; color: #607a74; font-size: 10px; font-weight: 850; }
+.batch-inbox-message-copy { min-width: 0; display: grid; gap: 3px; }
+.batch-inbox-message-line { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.batch-inbox-message-line strong, .batch-inbox-message-line time, .batch-inbox-message-subject, .batch-inbox-message-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-inbox-message-line strong { font-size: 12px; }
+.batch-inbox-message-line time { color: var(--muted); flex: 0 0 auto; font-size: 10px; }
+.batch-inbox-message-subject { font-size: 12px; font-weight: 750; }
+.batch-inbox-message-preview { color: var(--muted); font-size: 11px; }
+.batch-inbox-message-tail { min-width: 18px; display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.batch-inbox-message-tail > svg { width: 15px; height: 15px; }
+.batch-inbox-load { display: grid; place-items: center; padding: 11px; border-top: 1px solid var(--line); }
+.batch-inbox-load .btn { min-height: 35px; font-size: 11px; }
+.batch-inbox-empty { min-height: 110px; padding: 18px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted); font-size: 12px; text-align: center; }
+.batch-inbox-empty svg { width: 23px; height: 23px; }
+.batch-inbox-state { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 750; white-space: nowrap; }
+.batch-inbox-state > span { width: 7px; height: 7px; border-radius: 50%; background: #99a6ab; }
+.batch-inbox-state.ready { color: #22764f; }
+.batch-inbox-state.ready > span { background: #2eae73; }
+.batch-inbox-state.delayed { color: var(--accent); }
+.batch-inbox-state.delayed > span { background: var(--accent); }
+.batch-inbox-state.invalid { color: var(--danger); }
+.batch-inbox-state.invalid > span { background: var(--danger); }
+.batch-inbox-detail { width: min(820px, calc(100% - 28px)); max-height: min(760px, calc(100vh - 40px)); padding: 0; border: 1px solid var(--line); background: white; color: var(--text); box-shadow: 0 22px 70px rgba(34,56,52,.22); }
+.batch-inbox-detail::backdrop { background: rgba(26,41,42,.42); }
+.batch-inbox-detail > div { min-height: 420px; padding: 28px clamp(18px, 4vw, 46px) 36px; overflow: auto; }
+.batch-inbox-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 21px; border-bottom: 1px solid var(--line); }
+.batch-inbox-detail-head h1 { margin: 6px 0 0; font-size: 23px; line-height: 1.4; overflow-wrap: anywhere; }
+.batch-inbox-detail-error { min-height: 360px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); text-align: center; }
+.batch-inbox-detail-error svg { width: 30px; height: 30px; color: var(--danger); }
 
 /* Login */
 .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #eef4f2; }
@@ -606,6 +670,9 @@ tr:last-child td { border-bottom: 0; }
   .public-nav button, .public-quiet-button { justify-content: center; padding: 0; }
   .public-tool-view { grid-column: 2 / -1; }
   .public-totp-layout { grid-template-columns: 1fr; }
+  .batch-inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .batch-inbox-summary > div:nth-child(2) { border-right: 0; }
+  .batch-inbox-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
 }
 
 @media (max-width: 660px) {
@@ -666,7 +733,7 @@ tr:last-child td { border-bottom: 0; }
   .public-shell:has(.public-inbox-workspace:not(.hidden)) .public-main { padding: 0 0 66px; }
   .access-view { padding: 0 0 26px; }
   .access-workspace { min-height: 0; display: block; overflow: visible; border: 0; box-shadow: none; background: transparent; }
-  .access-navigation { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 6px; border: 1px solid var(--line); border-bottom: 0; }
+  .access-navigation { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 6px; border: 1px solid var(--line); border-bottom: 0; }
   .access-product, .access-navigation .access-nav-label, .access-navigation-foot { display: none; }
   .access-nav-preview { min-height: 54px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 3px; font-size: 10px; text-align: center; }
   .access-nav-preview span { display: block; }
@@ -686,7 +753,7 @@ tr:last-child td { border-bottom: 0; }
   .public-inbox-workspace { width: 100%; height: calc(100vh - 66px); min-height: 560px; display: block; border: 0; box-shadow: none; overflow: hidden; }
   .public-inbox-nav { position: fixed; z-index: 15; inset: auto 0 0; height: 66px; padding: 6px; display: block; border: 0; border-top: 1px solid var(--line); background: rgba(255,255,255,.98); }
   .public-session, .public-nav-foot { display: none; }
-  .public-nav { height: 100%; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .public-nav { height: 100%; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
   .public-nav button { min-height: 54px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 3px; font-size: 10px; }
   .public-nav button .public-nav-label { display: block; }
   .public-nav button .public-nav-count { display: none; }
@@ -706,6 +773,14 @@ tr:last-child td { border-bottom: 0; }
   .public-tool-view { height: 100%; padding: 18px 14px 28px; }
   .public-tool-form, .public-tool-result { padding: 17px 14px; }
   .public-tool-form > .btn { width: 100%; }
+  .batch-inbox-toolbar { align-items: stretch; flex-direction: column; }
+  .batch-inbox-actions { width: 100%; }
+  .batch-inbox-actions .btn:not(.btn-icon) { flex: 1; }
+  .batch-inbox-group-toggle { padding-inline: 10px; }
+  .batch-inbox-group-state { display: none; }
+  .batch-inbox-message { grid-template-columns: 29px minmax(0, 1fr); }
+  .batch-inbox-message-tail { grid-column: 2; }
+  .batch-inbox-message-tail .public-code-badge { margin-left: 0; }
 }
 
 @media (max-width: 420px) {

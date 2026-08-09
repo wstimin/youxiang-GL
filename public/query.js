@@ -27,11 +27,27 @@ const mailCodeCount = document.querySelector('#mail-code-count');
 const mailLastRefresh = document.querySelector('#mail-last-refresh');
 const changeKeyButton = document.querySelector('#change-key');
 const batchView = document.querySelector('#batch-view');
+const batchInboxView = document.querySelector('#batch-inbox-view');
 const mailBatchForm = document.querySelector('#mail-batch-form');
 const mailBatchTokensInput = document.querySelector('#mail-batch-tokens');
 const mailBatchCount = document.querySelector('#mail-batch-count');
 const mailBatchErrorBox = document.querySelector('#mail-batch-error');
 const mailBatchResultBox = document.querySelector('#mail-batch-result');
+const batchInboxForm = document.querySelector('#batch-inbox-form');
+const batchInboxTokensInput = document.querySelector('#batch-inbox-tokens');
+const batchInboxCount = document.querySelector('#batch-inbox-count');
+const batchInboxErrorBox = document.querySelector('#batch-inbox-error');
+const batchInboxResultBox = document.querySelector('#batch-inbox-result');
+const batchInboxSummary = document.querySelector('#batch-inbox-summary');
+const batchInboxSearchInput = document.querySelector('#batch-inbox-search');
+const clearBatchInboxSearchButton = document.querySelector('#clear-batch-inbox-search');
+const refreshBatchInboxButton = document.querySelector('#refresh-batch-inbox');
+const expandBatchInboxButton = document.querySelector('#expand-batch-inbox');
+const collapseBatchInboxButton = document.querySelector('#collapse-batch-inbox');
+const batchInboxStatus = document.querySelector('#batch-inbox-status');
+const batchInboxGroups = document.querySelector('#batch-inbox-groups');
+const batchInboxDetail = document.querySelector('#batch-inbox-detail');
+const batchInboxDetailContent = document.querySelector('#batch-inbox-detail-content');
 const totpView = document.querySelector('#totp-view');
 const totpForm = document.querySelector('#totp-query-form');
 const totpSecretInput = document.querySelector('#totp-secret');
@@ -60,6 +76,10 @@ let mailRefreshInFlight = false;
 let mailBatchRefreshTimer;
 let activeMailBatchTokens = [];
 let mailBatchRefreshInFlight = false;
+let activeBatchInboxTokens = [];
+let batchInboxSearchTimer;
+let batchInboxInFlight = false;
+let batchInboxState = { results: [], keyword: '', expanded: new Set(), initialized: false };
 let totpCountdownTimer;
 let totpRefreshInFlight = false;
 
@@ -185,6 +205,7 @@ function setPublicView(view) {
   mailListPane.classList.toggle('hidden', view !== 'mail');
   mailDetail.classList.toggle('hidden', view !== 'mail');
   batchView.classList.toggle('hidden', view !== 'batch');
+  batchInboxView.classList.toggle('hidden', view !== 'batch-inbox');
   totpView.classList.toggle('hidden', view !== 'totp');
   inboxWorkspace.dataset.view = view;
   document.querySelectorAll('[data-public-view]').forEach((button) => {
@@ -403,6 +424,144 @@ async function refreshMailBatch() {
   }
 }
 
+function parseBatchInboxTokens() {
+  return batchInboxTokensInput.value.split(/\r?\n/).map((token) => token.trim()).filter(Boolean);
+}
+
+function batchInboxStateLabel(item) {
+  if (item.status === 'invalid') return '<span class="batch-inbox-state invalid"><span></span>密钥无效</span>';
+  if (item.mailbox?.state === 'delayed') return '<span class="batch-inbox-state delayed"><span></span>同步延迟</span>';
+  if (item.mailbox?.state === 'paused') return '<span class="batch-inbox-state invalid"><span></span>邮箱已暂停</span>';
+  if (Number(item.mailbox?.matchedMessages || 0) > 0) return '<span class="batch-inbox-state ready"><span></span>有邮件</span>';
+  return `<span class="batch-inbox-state empty"><span></span>${batchInboxState.keyword ? '无匹配邮件' : '暂无邮件'}</span>`;
+}
+
+function renderBatchInboxMessage(message, mailboxIndex) {
+  return `<button class="batch-inbox-message" type="button" data-batch-inbox-message="${message.id}" data-mailbox-index="${mailboxIndex}">
+    <span class="batch-inbox-message-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span>
+    <span class="batch-inbox-message-copy"><span class="batch-inbox-message-line"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span><span class="batch-inbox-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="batch-inbox-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span></span>
+    <span class="batch-inbox-message-tail">${message.hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>验证码</span>' : ''}<i data-lucide="chevron-right"></i></span>
+  </button>`;
+}
+
+function renderBatchInbox() {
+  const results = batchInboxState.results;
+  const valid = results.filter((item) => item.status !== 'invalid');
+  const invalid = results.length - valid.length;
+  const withMail = valid.filter((item) => Number(item.mailbox?.matchedMessages || 0) > 0).length;
+  const total = valid.reduce((sum, item) => sum + Number(item.mailbox?.totalMessages || 0), 0);
+  const matched = valid.reduce((sum, item) => sum + Number(item.mailbox?.matchedMessages || 0), 0);
+  batchInboxSummary.innerHTML = `<div><span>邮箱</span><strong>${valid.length}</strong></div><div><span>${batchInboxState.keyword ? '匹配邮箱' : '有邮件'}</span><strong>${withMail}</strong></div><div><span>${batchInboxState.keyword ? '匹配邮件' : '7 天邮件'}</span><strong>${batchInboxState.keyword ? matched : total}</strong></div><div><span>无效密钥</span><strong>${invalid}</strong></div>`;
+  batchInboxGroups.innerHTML = results.map((item) => {
+    const expanded = batchInboxState.expanded.has(item.index);
+    const mailbox = item.mailbox;
+    const count = Number(mailbox?.matchedMessages || 0);
+    const countLabel = batchInboxState.keyword ? `${count} 封匹配 / ${Number(mailbox?.totalMessages || 0)} 封` : `${Number(mailbox?.totalMessages || 0)} 封`;
+    const title = mailbox?.address || `查询项 ${item.index + 1}`;
+    const latest = mailbox?.lastMessageAt ? `最近 ${formatMailDate(mailbox.lastMessageAt, true)}` : '最近 7 天无邮件';
+    const panelId = `batch-inbox-panel-${item.index}`;
+    return `<section class="batch-inbox-group ${expanded ? 'expanded' : ''} ${item.status === 'invalid' ? 'is-invalid' : ''}">
+      <button class="batch-inbox-group-toggle" type="button" data-batch-inbox-toggle="${item.index}" aria-expanded="${expanded}" aria-controls="${panelId}">
+        <span class="batch-inbox-group-index">${item.index + 1}</span><span class="batch-inbox-group-identity"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(countLabel)} · ${escapeHtml(latest)}</small></span><span class="batch-inbox-group-state">${batchInboxStateLabel(item)}</span><i data-lucide="chevron-down" class="batch-inbox-chevron"></i>
+      </button>
+      <div id="${panelId}" class="batch-inbox-panel ${expanded ? '' : 'hidden'}">
+        ${item.status === 'invalid' ? '<div class="batch-inbox-empty"><i data-lucide="key-round"></i><span>查询密钥无效或已失效，请检查后重新导入。</span></div>' : item.messages.length ? `<div class="batch-inbox-message-list">${item.messages.map((message) => renderBatchInboxMessage(message, item.index)).join('')}</div>${item.nextCursor ? `<div class="batch-inbox-load"><button class="btn btn-secondary" type="button" data-batch-inbox-more="${item.index}"><i data-lucide="chevrons-down" class="icon"></i><span>加载更多</span></button></div>` : ''}` : `<div class="batch-inbox-empty"><i data-lucide="mail-search"></i><span>${batchInboxState.keyword ? '这个邮箱没有匹配的邮件。' : '这个邮箱最近 7 天没有邮件。'}</span></div>`}
+      </div>
+    </section>`;
+  }).join('');
+  batchInboxGroups.querySelectorAll('[data-batch-inbox-toggle]').forEach((button) => button.addEventListener('click', () => {
+    const index = Number(button.dataset.batchInboxToggle);
+    if (batchInboxState.expanded.has(index)) batchInboxState.expanded.delete(index);
+    else batchInboxState.expanded.add(index);
+    renderBatchInbox();
+  }));
+  batchInboxGroups.querySelectorAll('[data-batch-inbox-message]').forEach((button) => button.addEventListener('click', () => {
+    const mailboxIndex = Number(button.dataset.mailboxIndex);
+    const item = batchInboxState.results.find((result) => result.index === mailboxIndex);
+    const message = item?.messages.find((candidate) => Number(candidate.id) === Number(button.dataset.batchInboxMessage));
+    if (message) openBatchInboxMessage(mailboxIndex, message);
+  }));
+  batchInboxGroups.querySelectorAll('[data-batch-inbox-more]').forEach((button) => button.addEventListener('click', () => loadMoreBatchInbox(Number(button.dataset.batchInboxMore), button)));
+  batchInboxStatus.textContent = batchInboxState.keyword ? `正在显示“${batchInboxState.keyword}”的分组搜索结果` : `已加载 ${results.length} 个查询项`;
+  renderIcons();
+}
+
+async function loadBatchInbox({ preserveExpanded = true } = {}) {
+  if (batchInboxInFlight || !activeBatchInboxTokens.length) return;
+  batchInboxInFlight = true;
+  batchInboxErrorBox.textContent = '';
+  batchInboxStatus.textContent = '正在查询最近 7 天邮件...';
+  refreshBatchInboxButton.disabled = true;
+  const previousExpanded = new Set(batchInboxState.expanded);
+  try {
+    const data = await request('/api/query/batch-inbox', {
+      tokens: activeBatchInboxTokens,
+      keyword: batchInboxSearchInput.value.trim(),
+      limitPerMailbox: 20
+    });
+    batchInboxState.results = Array.isArray(data.results) ? data.results : [];
+    batchInboxState.keyword = data.keyword || '';
+    batchInboxState.expanded = preserveExpanded ? new Set([...previousExpanded].filter((index) => batchInboxState.results.some((item) => item.index === index))) : new Set();
+    if (!batchInboxState.expanded.size) {
+      const firstWithMail = batchInboxState.results.find((item) => Number(item.mailbox?.matchedMessages || 0) > 0);
+      const firstValid = batchInboxState.results.find((item) => item.status !== 'invalid');
+      const initial = firstWithMail || firstValid;
+      if (initial) batchInboxState.expanded.add(initial.index);
+    }
+    batchInboxState.initialized = true;
+    batchInboxResultBox.classList.remove('hidden');
+    renderBatchInbox();
+  } catch (error) {
+    batchInboxStatus.textContent = '';
+    batchInboxErrorBox.textContent = error.message;
+  } finally {
+    batchInboxInFlight = false;
+    refreshBatchInboxButton.disabled = false;
+  }
+}
+
+async function loadMoreBatchInbox(index, button) {
+  const item = batchInboxState.results.find((result) => result.index === index);
+  const token = activeBatchInboxTokens[index];
+  if (!item?.nextCursor || !token) return;
+  button.disabled = true;
+  try {
+    const data = await request('/api/query/batch-inbox', {
+      tokens: [token],
+      keyword: batchInboxState.keyword,
+      limitPerMailbox: 20,
+      cursor: item.nextCursor
+    });
+    const next = data.results?.[0];
+    if (!next || next.status === 'invalid') throw new Error('这个邮箱的查询密钥已失效');
+    item.messages.push(...next.messages);
+    item.nextCursor = next.nextCursor;
+    renderBatchInbox();
+  } catch (error) {
+    batchInboxErrorBox.textContent = error.message;
+    button.disabled = false;
+  }
+}
+
+async function openBatchInboxMessage(index, message) {
+  const token = activeBatchInboxTokens[index];
+  if (!token) return;
+  batchInboxDetailContent.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
+  batchInboxDetail.showModal();
+  try {
+    const data = await request('/api/query/message', { token, messageId: Number(message.id) });
+    const detail = data.message;
+    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div><div><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>纯文本正文</span></div><pre class="public-detail-body"></pre></section>`;
+    batchInboxDetailContent.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的纯文本正文。';
+    batchInboxDetailContent.querySelector('[data-close-batch-detail]').addEventListener('click', () => batchInboxDetail.close());
+    renderIcons();
+  } catch (error) {
+    batchInboxDetailContent.innerHTML = `<div class="batch-inbox-detail-error"><i data-lucide="circle-alert"></i><strong>正文加载失败</strong><span>${escapeHtml(error.message)}</span><button class="btn btn-secondary" type="button" data-close-batch-detail>关闭</button></div>`;
+    batchInboxDetailContent.querySelector('[data-close-batch-detail]').addEventListener('click', () => batchInboxDetail.close());
+    renderIcons();
+  }
+}
+
 function totpPlatform(issuer) {
   const value = String(issuer || '').trim();
   const normalized = value.toLowerCase();
@@ -607,6 +766,57 @@ mailBatchForm.addEventListener('submit', async (event) => {
   } finally {
     button.disabled = false;
   }
+});
+
+batchInboxTokensInput.addEventListener('input', () => {
+  const count = parseBatchInboxTokens().length;
+  batchInboxCount.textContent = String(count);
+  batchInboxCount.parentElement.classList.toggle('danger-text', count > 50);
+});
+
+batchInboxForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  batchInboxErrorBox.textContent = '';
+  const tokens = parseBatchInboxTokens();
+  if (!tokens.length) return void (batchInboxErrorBox.textContent = '请至少输入一个查询密钥');
+  if (tokens.length > 50) return void (batchInboxErrorBox.textContent = '每次最多查询 50 个密钥');
+  const button = batchInboxForm.querySelector('[type="submit"]');
+  button.disabled = true;
+  activeBatchInboxTokens = tokens;
+  batchInboxState = { results: [], keyword: '', expanded: new Set(), initialized: false };
+  batchInboxSearchInput.value = '';
+  clearBatchInboxSearchButton.classList.add('hidden');
+  try {
+    await loadBatchInbox({ preserveExpanded: false });
+  } finally {
+    button.disabled = false;
+  }
+});
+
+batchInboxSearchInput.addEventListener('input', () => {
+  clearTimeout(batchInboxSearchTimer);
+  clearBatchInboxSearchButton.classList.toggle('hidden', !batchInboxSearchInput.value);
+  if (!activeBatchInboxTokens.length) return;
+  batchInboxSearchTimer = setTimeout(() => loadBatchInbox({ preserveExpanded: false }), 350);
+});
+
+clearBatchInboxSearchButton.addEventListener('click', () => {
+  batchInboxSearchInput.value = '';
+  batchInboxSearchInput.dispatchEvent(new Event('input'));
+  batchInboxSearchInput.focus();
+});
+
+refreshBatchInboxButton.addEventListener('click', () => loadBatchInbox());
+expandBatchInboxButton.addEventListener('click', () => {
+  batchInboxState.expanded = new Set(batchInboxState.results.map((item) => item.index));
+  renderBatchInbox();
+});
+collapseBatchInboxButton.addEventListener('click', () => {
+  batchInboxState.expanded.clear();
+  renderBatchInbox();
+});
+batchInboxDetail.addEventListener('click', (event) => {
+  if (event.target === batchInboxDetail) batchInboxDetail.close();
 });
 
 totpQrUploadButton.addEventListener('click', () => totpQrFileInput.click());

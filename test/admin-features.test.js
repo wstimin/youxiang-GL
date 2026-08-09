@@ -84,7 +84,7 @@ test('administrator controls the global single-query verification mode', () => {
   );
   const batchRoute = server.slice(
     server.indexOf("app.post('/api/query/batch'"),
-    server.indexOf("app.post('/api/query/totp'")
+    server.indexOf("app.post('/api/query/batch-inbox'")
   );
 
   assert.match(schema, /verification_mode_enabled/);

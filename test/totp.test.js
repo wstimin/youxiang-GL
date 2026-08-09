@@ -96,9 +96,9 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.doesNotMatch(script, /已转换并同步到管理后台/);
   assert.match(html, /id="totp-view"/);
-  assert.match(html, /styles\.css\?v=20260809-14/);
+  assert.match(html, /styles\.css\?v=20260809-15/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260809-14/);
+  assert.match(html, /query\.js\?v=20260809-15/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
@@ -119,7 +119,7 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   const server = fs.readFileSync('src/server.js', 'utf8');
   const html = fs.readFileSync('public/index.html', 'utf8');
   const script = fs.readFileSync('public/query.js', 'utf8');
-  const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/totp'"));
+  const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/batch-inbox'"));
 
   assert.match(server, /BATCH_QUERY_LIMIT_PER_10_MINUTES \|\| 50/);
   assert.match(batchRoute, /req\.body\.tokens\.length > 50/);
