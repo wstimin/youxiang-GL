@@ -23,7 +23,7 @@ services:
         max-file: "3"
 
   web:
-    image: ${APP_IMAGE:-ghcr.io/wstimin/icloud-hq:latest}
+    image: ${APP_IMAGE:-ghcr.io/wstimin/youxiang-GL:latest}
     pull_policy: always
     restart: unless-stopped
     depends_on:
@@ -43,7 +43,7 @@ services:
     logging: *default-logging
 
   worker:
-    image: ${APP_IMAGE:-ghcr.io/wstimin/icloud-hq:latest}
+    image: ${APP_IMAGE:-ghcr.io/wstimin/youxiang-GL:latest}
     pull_policy: always
     restart: unless-stopped
     command: ["node", "src/worker.js"]

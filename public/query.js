@@ -4,6 +4,11 @@ const mailForm = document.querySelector('#mail-query-form');
 const mailTokenInput = document.querySelector('#mail-token');
 const mailErrorBox = document.querySelector('#mail-query-error');
 const mailResultBox = document.querySelector('#mail-result');
+const mailBatchForm = document.querySelector('#mail-batch-form');
+const mailBatchTokensInput = document.querySelector('#mail-batch-tokens');
+const mailBatchCount = document.querySelector('#mail-batch-count');
+const mailBatchErrorBox = document.querySelector('#mail-batch-error');
+const mailBatchResultBox = document.querySelector('#mail-batch-result');
 const totpForm = document.querySelector('#totp-query-form');
 const totpSecretInput = document.querySelector('#totp-secret');
 const totpQrFileInput = document.querySelector('#totp-qr-file');
@@ -13,6 +18,9 @@ const totpResultBox = document.querySelector('#totp-result');
 const toast = document.querySelector('#toast');
 const activeTotps = new Map();
 let mailCountdownTimer;
+let mailBatchRefreshTimer;
+let activeMailBatchTokens = [];
+let mailBatchRefreshInFlight = false;
 let totpCountdownTimer;
 let totpRefreshInFlight = false;
 
@@ -64,6 +72,68 @@ function renderMail(data) {
   };
   update();
   mailCountdownTimer = setInterval(update, 1000);
+}
+
+function parseBatchTokens() {
+  return mailBatchTokensInput.value
+    .split(/\r?\n/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function mailBatchStatus(item) {
+  if (item.status === 'received') return '<span class="batch-status received"><span></span>已收到</span>';
+  if (item.status === 'waiting') return '<span class="batch-status waiting"><span></span>等待中</span>';
+  return '<span class="batch-status invalid"><span></span>密钥无效</span>';
+}
+
+function renderMailBatch(data) {
+  const received = data.results.filter((item) => item.status === 'received').length;
+  const waiting = data.results.filter((item) => item.status === 'waiting').length;
+  const invalid = data.results.filter((item) => item.status === 'invalid').length;
+  mailBatchResultBox.classList.remove('hidden');
+  mailBatchResultBox.innerHTML = `
+    <div class="result-meta batch-result-meta"><strong>批量接码列表</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
+    <div class="batch-result-list">${data.results.map((item) => `
+      <section class="batch-result-row batch-${item.status}">
+        <div class="batch-result-identity">
+          <span class="batch-row-index">${item.index + 1}</span>
+          <div><strong>${escapeHtml(item.label || item.alias || '未识别密钥')}</strong><small>${escapeHtml(item.alias || `第 ${item.index + 1} 个查询密钥`)}</small></div>
+        </div>
+        <div class="batch-result-state">${mailBatchStatus(item)}</div>
+        <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>${escapeHtml(item.message.sender || item.message.subject || '验证码邮件')}</small>` : `<strong>------</strong><small>${item.status === 'invalid' ? '请检查查询密钥' : '等待最新有效验证码'}</small>`}</div>
+        <div class="batch-result-action">${item.message ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-batch-code="${item.index}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
+      </section>`).join('')}</div>
+    <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的验证码</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>`;
+  mailBatchResultBox.querySelectorAll('[data-copy-batch-code]').forEach((button) => button.addEventListener('click', () => {
+    const item = data.results[Number(button.dataset.copyBatchCode)];
+    if (item?.message) copyCode(item.message.code, '邮箱验证码已复制');
+  }));
+  document.querySelector('#refresh-mail-batch').addEventListener('click', () => refreshMailBatch());
+  lucide.createIcons();
+  clearTimeout(mailBatchRefreshTimer);
+  if (waiting) mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), Number(data.refreshAfterSeconds || 15) * 1000);
+}
+
+async function queryMailBatch(tokens) {
+  return request('/api/query/batch', { tokens });
+}
+
+async function refreshMailBatch() {
+  if (mailBatchRefreshInFlight || !activeMailBatchTokens.length) return;
+  mailBatchRefreshInFlight = true;
+  mailBatchErrorBox.textContent = '';
+  const refreshButton = document.querySelector('#refresh-mail-batch');
+  if (refreshButton) refreshButton.disabled = true;
+  try {
+    renderMailBatch(await queryMailBatch(activeMailBatchTokens));
+  } catch (error) {
+    clearTimeout(mailBatchRefreshTimer);
+    mailBatchErrorBox.textContent = error.message;
+  } finally {
+    mailBatchRefreshInFlight = false;
+    if (refreshButton?.isConnected) refreshButton.disabled = false;
+  }
 }
 
 function totpTitle(item) {
@@ -181,6 +251,27 @@ document.querySelectorAll('[data-query-tab]').forEach((button) => button.addEven
   });
 }));
 
+document.querySelectorAll('[data-mail-mode]').forEach((button) => button.addEventListener('click', () => {
+  const batchMode = button.dataset.mailMode === 'batch';
+  document.querySelectorAll('[data-mail-mode]').forEach((modeButton) => {
+    const active = modeButton === button;
+    modeButton.classList.toggle('active', active);
+    modeButton.setAttribute('aria-pressed', String(active));
+  });
+  mailForm.classList.toggle('hidden', batchMode);
+  mailBatchForm.classList.toggle('hidden', !batchMode);
+  mailResultBox.classList.toggle('hidden', batchMode || !mailResultBox.innerHTML);
+  mailBatchResultBox.classList.toggle('hidden', !batchMode || !mailBatchResultBox.innerHTML);
+  if (!batchMode) clearTimeout(mailBatchRefreshTimer);
+  else if (activeMailBatchTokens.length && mailBatchResultBox.innerHTML) mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), 15000);
+}));
+
+mailBatchTokensInput.addEventListener('input', () => {
+  const count = parseBatchTokens().length;
+  mailBatchCount.textContent = String(count);
+  mailBatchCount.parentElement.classList.toggle('danger-text', count > 50);
+});
+
 totpQrUploadButton.addEventListener('click', () => totpQrFileInput.click());
 totpQrFileInput.addEventListener('change', async () => {
   const file = totpQrFileInput.files[0];
@@ -209,6 +300,32 @@ mailForm.addEventListener('submit', async (event) => {
     renderMail(await request('/api/query', { token: mailTokenInput.value.trim() }));
   } catch (error) {
     mailErrorBox.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+mailBatchForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  mailBatchErrorBox.textContent = '';
+  const tokens = parseBatchTokens();
+  if (!tokens.length) {
+    mailBatchErrorBox.textContent = '请至少输入一个查询密钥';
+    return;
+  }
+  if (tokens.length > 50) {
+    mailBatchErrorBox.textContent = '每次最多查询 50 个密钥';
+    return;
+  }
+  const button = mailBatchForm.querySelector('[type="submit"]');
+  button.disabled = true;
+  clearTimeout(mailBatchRefreshTimer);
+  activeMailBatchTokens = tokens;
+  try {
+    renderMailBatch(await queryMailBatch(tokens));
+  } catch (error) {
+    activeMailBatchTokens = [];
+    mailBatchErrorBox.textContent = error.message;
   } finally {
     button.disabled = false;
   }

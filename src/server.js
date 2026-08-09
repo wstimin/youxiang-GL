@@ -17,6 +17,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const sessionHours = Number(process.env.SESSION_HOURS || 12);
 const queryLimit = Number(process.env.QUERY_LIMIT_PER_10_MINUTES || 30);
+const batchQueryLimit = Number(process.env.BATCH_QUERY_LIMIT_PER_10_MINUTES || 50);
 const loginLimit = Number(process.env.LOGIN_LIMIT_PER_15_MINUTES || 10);
 const queryFailureLimit = Number(process.env.QUERY_FAILURE_LIMIT_PER_15_MINUTES || 8);
 const loginFailureLimit = Number(process.env.LOGIN_FAILURE_LIMIT_PER_15_MINUTES || 5);
@@ -313,6 +314,75 @@ app.post('/api/query', async (req, res, next) => {
         expiresAt: message.expires_at
       } : null
     });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/query/batch', async (req, res, next) => {
+  noStore(res);
+  const ip = extractClientIp(req);
+  const limit = rateLimit(`query-batch:${ip}`, batchQueryLimit, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    res.set('Retry-After', String(limit.retryAfter));
+    return res.status(429).json({ error: `批量查询过于频繁，请在 ${limit.retryAfter} 秒后重试` });
+  }
+  try {
+    const failure = await failureGuard('query_batch_failed', ip, queryFailureLimit);
+    if (!failure.allowed) {
+      res.set('Retry-After', String(failure.retryAfter));
+      return res.status(429).json({ error: `无效查询密钥过多，请在 ${failure.retryAfter} 秒后重试` });
+    }
+    if (!Array.isArray(req.body.tokens) || !req.body.tokens.length) {
+      return res.status(400).json({ error: '请至少输入一个查询密钥' });
+    }
+    if (req.body.tokens.length > 50) {
+      return res.status(400).json({ error: '每次最多查询 50 个密钥' });
+    }
+
+    const tokens = req.body.tokens.map((value) => String(value || '').trim());
+    const tokenDigests = tokens.map((token) => token.length >= 20 && token.length <= 200 ? digest(token) : null);
+    const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
+    const matched = searchableDigests.length ? await pool.query(
+      `SELECT a.id, a.address, a.label, a.token_digest,
+         v.id AS message_id, v.sender, v.subject, v.code_encrypted, v.received_at, v.expires_at
+       FROM aliases a
+       LEFT JOIN LATERAL (
+         SELECT id, sender, subject, code_encrypted, received_at, expires_at
+         FROM verification_messages
+         WHERE alias_id = a.id AND expires_at > NOW() AND code_encrypted IS NOT NULL
+         ORDER BY received_at DESC LIMIT 1
+       ) v ON TRUE
+       WHERE a.token_digest = ANY($1::text[]) AND a.enabled = TRUE
+         AND (a.token_expires_at IS NULL OR a.token_expires_at > NOW())`,
+      [searchableDigests]
+    ) : { rows: [] };
+    const aliasesByDigest = new Map(matched.rows.map((row) => [row.token_digest, row]));
+    const results = tokens.map((_token, index) => {
+      const alias = aliasesByDigest.get(tokenDigests[index]);
+      if (!alias) return { index, status: 'invalid', alias: null, label: '', message: null };
+      const message = alias.message_id ? {
+        id: alias.message_id,
+        code: decrypt(alias.code_encrypted),
+        sender: alias.sender,
+        subject: alias.subject,
+        receivedAt: alias.received_at,
+        expiresAt: alias.expires_at
+      } : null;
+      return {
+        index,
+        status: message ? 'received' : 'waiting',
+        alias: maskEmail(alias.address),
+        label: alias.label,
+        message
+      };
+    });
+    const invalidCount = results.filter((item) => item.status === 'invalid').length;
+    await audit({
+      actor: 'public',
+      action: invalidCount === results.length ? 'query_batch_failed' : 'query_batch_success',
+      ip,
+      detail: `requested=${results.length};invalid=${invalidCount}`
+    });
+    return res.json({ results, refreshAfterSeconds: 15 });
   } catch (error) { next(error); }
 });
 
@@ -620,12 +690,25 @@ app.patch('/api/admin/aliases/:id', ...adminApi(async (req, res) => {
 app.get('/api/admin/aliases/export', ...adminApi(async (req, res) => {
   noStore(res);
   const result = await pool.query(
-    `SELECT a.address, a.label, a.enabled, a.token_expires_at, m.email AS mail_account_email
+    `SELECT a.address, a.token_encrypted
      FROM aliases a JOIN mail_accounts m ON m.id = a.mail_account_id
      ORDER BY m.email, a.address`
   );
-  await audit({ actor: `user:${req.admin.id}`, action: 'aliases_exported', detail: String(result.rowCount), ip: extractClientIp(req) });
-  res.json({ aliases: result.rows });
+  const aliases = [];
+  let skipped = 0;
+  for (const row of result.rows) {
+    if (!row.token_encrypted) {
+      skipped += 1;
+      continue;
+    }
+    try {
+      aliases.push({ address: row.address, token: decrypt(row.token_encrypted) });
+    } catch (_error) {
+      skipped += 1;
+    }
+  }
+  await audit({ actor: `user:${req.admin.id}`, action: 'aliases_exported', detail: `exported=${aliases.length};skipped=${skipped}`, ip: extractClientIp(req) });
+  res.json({ aliases, skipped });
 }));
 
 app.post('/api/admin/aliases/import', ...adminApi(async (req, res) => {

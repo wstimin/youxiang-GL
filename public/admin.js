@@ -338,8 +338,12 @@ function openTotpEditor(id) {
   lucide.createIcons();
 }
 
-function downloadJson(filename, value) {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' });
+function formatAliasSecrets(rows) {
+  return rows.map((row) => `${row.address}--${row.token}`).join('\n');
+}
+
+function downloadText(filename, value) {
+  const blob = new Blob([value], { type: 'text/plain;charset=utf-8' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -348,9 +352,9 @@ function downloadJson(filename, value) {
 }
 
 function showImportedAliases(data) {
-  openModal('批量导入完成', `<p>成功创建 ${data.created.length} 条，跳过 ${data.skipped.length} 条。</p>${data.created.length ? `<div class="secret-box import-results">${data.created.map((row) => `${escapeHtml(row.address)}\n${escapeHtml(row.token)}`).join('\n\n')}</div><div class="form-actions"><button id="download-import-results" class="btn btn-primary"><i data-lucide="download" class="icon"></i><span>下载新密钥</span></button></div>` : ''}${data.skipped.length ? `<p class="muted compact-note">跳过：${data.skipped.map((row) => `${escapeHtml(row.address || '空值')}（${escapeHtml(row.reason)}）`).join('、')}</p>` : ''}`);
+  openModal('批量导入完成', `<p>成功创建 ${data.created.length} 条，跳过 ${data.skipped.length} 条。</p>${data.created.length ? `<div class="secret-box import-results">${data.created.map((row) => `${escapeHtml(row.address)}--${escapeHtml(row.token)}`).join('\n')}</div><div class="form-actions"><button id="download-import-results" class="btn btn-primary"><i data-lucide="download" class="icon"></i><span>下载新密钥</span></button></div>` : ''}${data.skipped.length ? `<p class="muted compact-note">跳过：${data.skipped.map((row) => `${escapeHtml(row.address || '空值')}（${escapeHtml(row.reason)}）`).join('、')}</p>` : ''}`);
   const button = document.querySelector('#download-import-results');
-  if (button) button.addEventListener('click', () => downloadJson(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.json`, data.created));
+  if (button) button.addEventListener('click', () => downloadText(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.created)));
   lucide.createIcons();
 }
 
@@ -426,8 +430,9 @@ document.querySelector('#refresh').addEventListener('click', loadState);
 
 document.querySelector('#export-aliases').addEventListener('click', async () => {
   const data = await api('/api/admin/aliases/export');
-  downloadJson(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.json`, data.aliases);
-  toastMessage('子邮箱配置已导出');
+  if (!data.aliases.length) return toastMessage(data.skipped ? '没有可导出的密钥，请先重置旧密钥' : '没有可导出的子邮箱密钥');
+  downloadText(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.aliases));
+  toastMessage(data.skipped ? `已导出 ${data.aliases.length} 条，跳过 ${data.skipped} 条不可恢复的旧密钥` : `已导出 ${data.aliases.length} 条子邮箱密钥`);
 });
 
 document.querySelector('#import-aliases').addEventListener('click', () => {

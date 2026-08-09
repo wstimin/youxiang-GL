@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>验证码查询</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-4">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260809-5">
 </head>
 <body class="public-shell">
   <header class="public-head">
@@ -28,7 +28,11 @@
         <div class="query-workspace">
           <section class="workspace-card input-card">
             <header class="workspace-card-head"><span class="workspace-icon mail"><i data-lucide="key-round" class="icon"></i></span><div><span class="card-kicker">MAIL LOOKUP</span><h2>输入查询密钥</h2></div></header>
-            <p class="card-copy">使用子邮箱对应的独立密钥查询最新有效邮件验证码。</p>
+            <p class="card-copy">单个查询适合临时使用；批量查询可同时等待最多 50 个子邮箱验证码。</p>
+            <div class="mail-mode-switch" role="group" aria-label="邮箱验证码查询模式">
+              <button class="mail-mode-button active" type="button" data-mail-mode="single" aria-pressed="true"><i data-lucide="key-round" class="icon"></i><span>单个查询</span></button>
+              <button class="mail-mode-button" type="button" data-mail-mode="batch" aria-pressed="false"><i data-lucide="list-checks" class="icon"></i><span>批量查询</span></button>
+            </div>
             <form id="mail-query-form">
               <div class="field">
                 <label for="mail-token">邮箱验证码查询密钥</label>
@@ -37,12 +41,22 @@
               <p id="mail-query-error" class="message" role="alert"></p>
               <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="search" class="icon"></i><span>查询邮箱验证码</span></button>
             </form>
+            <form id="mail-batch-form" class="hidden">
+              <div class="field">
+                <label for="mail-batch-tokens">批量查询密钥</label>
+                <textarea id="mail-batch-tokens" name="tokens" rows="10" maxlength="10100" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥，最多 50 个"></textarea>
+                <div class="field-tools batch-field-tools"><small><span id="mail-batch-count">0</span> / 50 个密钥</small><small>结果每 15 秒自动刷新</small></div>
+              </div>
+              <p id="mail-batch-error" class="message" role="alert"></p>
+              <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="search-check" class="icon"></i><span>开始批量接码</span></button>
+            </form>
           </section>
           <section class="workspace-card output-card">
             <header class="workspace-card-head"><span class="workspace-icon output"><i data-lucide="radio" class="icon"></i></span><div><span class="card-kicker">LIVE OUTPUT</span><h2>实时查询结果</h2></div></header>
             <div class="output-surface mail-output-surface">
               <div class="result-placeholder"><span class="placeholder-icon"><i data-lucide="mail-search"></i></span><strong>等待查询邮箱验证码</strong><p>提交查询密钥后，最新有效验证码会显示在这里。</p></div>
               <div id="mail-result" class="result hidden" aria-live="polite"></div>
+              <div id="mail-batch-result" class="result hidden" aria-live="polite"></div>
             </div>
           </section>
         </div>
@@ -80,7 +94,7 @@
   </main>
   <footer class="public-foot">查询结果不会被浏览器或代理缓存。请勿向无关人员透露查询密钥与验证码。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="/assets/vendor/lucide.js?v=20260809-4"></script>
-  <script src="/assets/query.js?v=20260809-4"></script>
+  <script src="/assets/vendor/lucide.js?v=20260809-5"></script>
+  <script src="/assets/query.js?v=20260809-5"></script>
 </body>
 </html>

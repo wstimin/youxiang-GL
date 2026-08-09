@@ -93,9 +93,9 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.match(html, />转换 2FA</);
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.match(html, /class="output-surface totp-output-surface"/);
-  assert.match(html, /styles\.css\?v=20260809-4/);
-  assert.match(html, /vendor\/lucide\.js\?v=20260809-4/);
-  assert.match(html, /query\.js\?v=20260809-4/);
+  assert.match(html, /styles\.css\?v=20260809-5/);
+  assert.match(html, /vendor\/lucide\.js\?v=20260809-5/);
+  assert.match(html, /query\.js\?v=20260809-5/);
   assert.match(html, /id="totp-tab"[\s\S]*?data-lucide="fingerprint"/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
@@ -105,6 +105,31 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.match(script, /const activeTotps = new Map\(\)/);
   assert.match(script, /function renderTotpAvatar/);
   assert.match(script, /class="totp-entry"/);
+});
+
+test('public mail lookup supports bounded batches and automatic refresh', () => {
+  const fs = require('node:fs');
+  const server = fs.readFileSync('src/server.js', 'utf8');
+  const html = fs.readFileSync('public/index.html', 'utf8');
+  const script = fs.readFileSync('public/query.js', 'utf8');
+  const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/totp'"));
+
+  assert.match(server, /BATCH_QUERY_LIMIT_PER_10_MINUTES \|\| 50/);
+  assert.match(batchRoute, /req\.body\.tokens\.length > 50/);
+  assert.match(batchRoute, /a\.token_digest = ANY\(\$1::text\[\]\)/);
+  assert.match(batchRoute, /LEFT JOIN LATERAL/);
+  assert.match(batchRoute, /status: message \? 'received' : 'waiting'/);
+  assert.match(batchRoute, /status: 'invalid'/);
+  assert.match(batchRoute, /refreshAfterSeconds: 15/);
+  assert.doesNotMatch(batchRoute, /token_encrypted|SELECT[^\n]*address[^\n]*token_encrypted/);
+  assert.match(html, /data-mail-mode="single"/);
+  assert.match(html, /data-mail-mode="batch"/);
+  assert.match(html, /id="mail-batch-tokens"/);
+  assert.match(html, /id="mail-batch-result"/);
+  assert.match(script, /request\('\/api\/query\/batch', \{ tokens \}\)/);
+  assert.match(script, /setTimeout\(\(\) => refreshMailBatch\(\)/);
+  assert.match(script, /let activeMailBatchTokens = \[\]/);
+  assert.doesNotMatch(script, /localStorage|sessionStorage/);
 });
 
 test('public QR recognition stays local and only fills the raw TOTP input', () => {

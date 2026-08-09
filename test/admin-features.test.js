@@ -46,12 +46,30 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-avatar-hair"/);
   assert.match(adminHtml, /class="admin-avatar-body"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-4/);
-  assert.match(adminHtml, /admin\.js\?v=20260809-4/);
+  assert.match(adminHtml, /admin\.js\?v=20260809-5/);
+  assert.match(adminHtml, /styles\.css\?v=20260809-5/);
   assert.doesNotMatch(adminHtml, /class="nav-totp"|class="twofa-mark"/);
   assert.doesNotMatch(adminHtml, /data-lucide="shield-keyhole"/);
   assert.match(styles, /\.nav button > span/);
   assert.match(styles, /\.admin-avatar-person/);
   assert.doesNotMatch(styles, /\.nav-totp-icon|\.nav button\.nav-totp/);
+});
+
+test('alias secret exports use address--token text format', () => {
+  const exportRoute = server.slice(
+    server.indexOf("app.get('/api/admin/aliases/export'"),
+    server.indexOf("app.post('/api/admin/aliases/import'")
+  );
+
+  assert.match(exportRoute, /SELECT a\.address, a\.token_encrypted/);
+  assert.match(exportRoute, /decrypt\(row\.token_encrypted\)/);
+  assert.match(exportRoute, /res\.json\(\{ aliases, skipped \}\)/);
+  assert.doesNotMatch(exportRoute, /res\.json\([^)]*token_encrypted/);
+  assert.match(admin, /`\$\{row\.address\}--\$\{row\.token\}`/);
+  assert.match(admin, /text\/plain;charset=utf-8/);
+  assert.match(admin, /icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt/g);
+  assert.match(admin, /downloadText\([^,]+, formatAliasSecrets\(data\.created\)\)/);
+  assert.match(admin, /downloadText\([^,]+, formatAliasSecrets\(data\.aliases\)\)/);
 });
 
 test('mail accounts support fixed iCloud, Gmail, and Outlook provider presets', () => {

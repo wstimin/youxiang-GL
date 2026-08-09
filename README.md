@@ -16,7 +16,7 @@
 - 管理员重新验证登录密码后，可按需查看和复制邮箱授权密码
 - 多母邮箱、多子邮箱管理
 - 母邮箱、子邮箱地址与备注、查询密钥有效期、2FA 平台与账号备注均可编辑
-- 子邮箱搜索、批量导入和非敏感配置导出
+- 子邮箱搜索、批量导入、查询密钥导出和最多 50 个邮箱的批量验证码查询
 - 每个子邮箱独立高强度查询密钥，数据库保存用于验证的 HMAC 摘要和管理员查看所需的 AES-256-GCM 加密副本
 - 管理员重新输入当前登录密码后，可按需查看查询密钥、2FA 手动密钥和当前动态码
 - 管理端运行指标、Worker 心跳、登录会话查看与其他设备退出
@@ -42,7 +42,7 @@
 先在域名服务商处添加 A 记录，将例如 `code.example.com` 指向服务器公网 IP。然后使用 root 用户或具有 `sudo` 权限的用户登录服务器，运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wstimin/icloud-hq/main/deploy.sh \
+curl -fsSL https://raw.githubusercontent.com/wstimin/youxiang-GL/main/deploy.sh \
   -o /tmp/icloud-hq-deploy.sh &&
 sudo sh /tmp/icloud-hq-deploy.sh
 ```
@@ -98,7 +98,7 @@ sudo sh /tmp/icloud-hq-deploy.sh
 
 管理员后台之后只能看到密钥末六位。密钥丢失时应点击“重置密钥”，旧密钥会立即失效。
 
-子邮箱列表支持搜索、批量导入和配置导出。批量导入格式为每行 `子邮箱,备注`，新生成的查询密钥会在导入结果中显示并可下载；导出文件不包含查询密钥。编辑子邮箱时可以修改所属母邮箱、地址、备注和密钥有效期，现有查询密钥不会被重置。
+子邮箱列表支持搜索、批量导入和查询密钥导出。批量导入格式为每行 `子邮箱,备注`，新生成的查询密钥会在导入结果中显示并可下载；导入结果和列表导出均为纯文本 `.txt` 文件，每行格式固定为 `邮箱--密钥`。无法恢复明文密钥的旧记录会被跳过，重置一次查询密钥后即可导出。编辑子邮箱时可以修改所属母邮箱、地址、备注和密钥有效期，现有查询密钥不会被重置。
 
 ## 独立第三方平台 2FA
 
@@ -205,6 +205,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 | `MAX_MESSAGE_BYTES` | `1048576` | 单封邮件最多读取字节数，防止大附件占用内存 |
 | `SESSION_HOURS` | `12` | 管理员登录会话时长 |
 | `QUERY_LIMIT_PER_10_MINUTES` | `30` | 单 IP 每十分钟查询上限 |
+| `BATCH_QUERY_LIMIT_PER_10_MINUTES` | `50` | 单 IP 每十分钟批量查询请求上限 |
 | `LOGIN_LIMIT_PER_15_MINUTES` | `10` | 单 IP 每十五分钟登录尝试上限 |
 | `QUERY_FAILURE_LIMIT_PER_15_MINUTES` | `8` | 单 IP 连续错误查询的持久限制 |
 | `LOGIN_FAILURE_LIMIT_PER_15_MINUTES` | `5` | 单 IP 连续密码错误的持久限制 |
@@ -219,7 +220,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 GitHub Actions 工作流位于 `.github/workflows/container.yml`。推送到 `main` 后会自动执行语法检查和测试，并构建 `linux/amd64`、`linux/arm64` 两种架构的镜像：
 
 ```text
-ghcr.io/wstimin/icloud-hq:latest
+ghcr.io/wstimin/youxiang-GL:latest
 ```
 
 推送 `v*` 格式的 Git 标签时还会生成对应版本标签；每次构建也会生成 `sha-*` 标签。Pull Request 只测试和构建，不发布镜像。
