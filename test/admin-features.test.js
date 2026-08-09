@@ -46,7 +46,7 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-avatar-hair"/);
   assert.match(adminHtml, /class="admin-avatar-body"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(adminHtml, /admin\.js\?v=20260809-7/);
+  assert.match(adminHtml, /admin\.js\?v=20260809-8/);
   assert.match(adminHtml, /styles\.css\?v=20260809-7/);
   assert.doesNotMatch(adminHtml, /class="nav-totp"|class="twofa-mark"/);
   assert.doesNotMatch(adminHtml, /data-lucide="shield-keyhole"/);
@@ -163,4 +163,23 @@ test('sessions and persistent failure guards are backed by database state', () =
   assert.match(server, /app\.delete\('\/api\/admin\/sessions\/:id'/);
   assert.match(server, /app\.post\('\/api\/admin\/sessions\/revoke-others'/);
   assert.match(admin, /data-session-revoke/);
+});
+
+test('administrator records and mailbox errors use Chinese display labels', () => {
+  assert.match(admin, /const auditActionLabels/);
+  assert.match(admin, /query_message_success: '邮件正文查询成功'/);
+  assert.match(admin, /aliases_imported: '已批量导入邮箱'/);
+  assert.match(admin, /function auditActorLabel/);
+  assert.match(admin, /公开查询端/);
+  assert.match(admin, /管理员二次验证/);
+  assert.match(admin, /function auditDetailLabel/);
+  assert.match(admin, /查询密钥格式无效/);
+  assert.match(admin, /请求 \$\{requestedMatch\[1\]\} 条，无效 \$\{requestedMatch\[2\]\} 条/);
+  assert.match(admin, /function auditRecordDetail/);
+  assert.match(admin, /共退出 \$\{String\(row\.detail\)\.trim\(\)\} 个会话/);
+  assert.match(admin, /function mailErrorLabel/);
+  assert.match(admin, /连接邮箱服务器超时，请检查服务器出站网络和 TCP 993 端口/);
+  assert.match(admin, /邮箱登录失败，请检查邮箱地址和应用专用密码/);
+  assert.match(admin, /验证码识别度/);
+  assert.match(admin, /验证码有效期/);
 });

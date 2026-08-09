@@ -46,6 +46,111 @@ function badge(status, enabled = true) {
   return '<span class="badge off">等待同步</span>';
 }
 
+const auditActionLabels = Object.freeze({
+  query_failed: '查询失败',
+  query_success: '查询成功',
+  query_message_success: '邮件正文查询成功',
+  query_batch_failed: '批量查询失败',
+  query_batch_success: '批量查询成功',
+  totp_converted: '2FA 转换成功',
+  totp_failed: '2FA 转换失败',
+  login_failed: '登录失败',
+  login_success: '登录成功',
+  login_totp_failed: '登录动态验证码失败',
+  login_totp_success: '登录动态验证码成功',
+  verification_mode_enabled: '已启用验证码方式',
+  verification_mode_disabled: '已关闭验证码方式',
+  mail_sync_requested: '已请求邮箱同步',
+  session_revoked: '已退出指定会话',
+  other_sessions_revoked: '已退出其他会话',
+  mail_account_saved: '已保存母邮箱',
+  mail_account_edited: '已编辑母邮箱',
+  mail_account_secret_reveal_failed: '查看邮箱凭据失败',
+  mail_account_secret_revealed: '已查看邮箱凭据',
+  mail_account_toggled: '已切换母邮箱状态',
+  mail_account_deleted: '已删除母邮箱',
+  alias_created: '已创建邮箱',
+  alias_edited: '已编辑邮箱',
+  aliases_exported: '已导出邮箱密钥',
+  aliases_imported: '已批量导入邮箱',
+  alias_token_regenerated: '已重置查询密钥',
+  alias_toggled: '已切换邮箱状态',
+  alias_secrets_reveal_failed: '查看查询密钥失败',
+  alias_secrets_revealed: '已查看查询密钥',
+  totp_secret_reveal_failed: '查看 2FA 密钥失败',
+  totp_secret_revealed: '已查看 2FA 密钥',
+  totp_entry_edited: '已编辑 2FA 记录',
+  totp_entry_deleted: '已删除 2FA 记录',
+  alias_deleted: '已删除邮箱',
+  totp_enabled: '已启用管理员 TOTP',
+  password_changed: '已修改登录密码'
+});
+
+function auditActorLabel(actor) {
+  const value = String(actor || '').trim();
+  if (value === 'public') return '公开查询端';
+  if (value === 'unknown') return '未知用户';
+  if (value === 'admin-challenge') return '管理员二次验证';
+  const userMatch = value.match(/^user:(\d+)$/);
+  if (userMatch) return `管理员 #${userMatch[1]}`;
+  const aliasMatch = value.match(/^alias:(\d+)$/);
+  if (aliasMatch) return `邮箱 #${aliasMatch[1]}`;
+  return value;
+}
+
+function auditActionLabel(action) {
+  const value = String(action || '').trim();
+  return auditActionLabels[value] || value || '系统操作';
+}
+
+function auditDetailLabel(detail) {
+  const value = String(detail || '').trim();
+  if (!value) return '—';
+  const directLabels = {
+    'invalid token format': '查询密钥格式无效',
+    'unknown token': '查询密钥不存在',
+    'invalid input': '输入无效'
+  };
+  if (directLabels[value]) return directLabels[value];
+  const modeMatch = value.match(/^mode=(code|text)$/);
+  if (modeMatch) return modeMatch[1] === 'code' ? '验证码方式' : '邮件文本方式';
+  const requestedMatch = value.match(/^requested=(\d+);invalid=(\d+)$/);
+  if (requestedMatch) return `请求 ${requestedMatch[1]} 条，无效 ${requestedMatch[2]} 条`;
+  const exportedMatch = value.match(/^exported=(\d+);skipped=(\d+)$/);
+  if (exportedMatch) return `导出 ${exportedMatch[1]} 条，跳过 ${exportedMatch[2]} 条`;
+  const createdMatch = value.match(/^created=(\d+);skipped=(\d+)$/);
+  if (createdMatch) return `创建 ${createdMatch[1]} 条，跳过 ${createdMatch[2]} 条`;
+  return value;
+}
+
+function auditRecordDetail(row) {
+  const target = String(row.target || '').trim();
+  const detail = auditDetailLabel(row.detail);
+  if (row.action === 'other_sessions_revoked' && /^\d+$/.test(String(row.detail || '').trim())) {
+    return `共退出 ${String(row.detail).trim()} 个会话`;
+  }
+  if (target && detail !== '—') return `${target} · ${detail}`;
+  return target || detail;
+}
+
+function mailErrorLabel(error) {
+  const value = String(error || '').trim();
+  if (!value) return '';
+  if (/AUTHENTICATIONFAILED|authentication failed|invalid credentials|login failed/i.test(value)) {
+    return '邮箱登录失败，请检查邮箱地址和应用专用密码';
+  }
+  if (/ETIMEDOUT|CONNECT_TIMEOUT|failed to establish connection in required time|timed out/i.test(value)) {
+    return '连接邮箱服务器超时，请检查服务器出站网络和 TCP 993 端口';
+  }
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(value)) {
+    return '无法解析邮箱服务器地址，请检查服务器 DNS';
+  }
+  if (/ECONNREFUSED/i.test(value)) return '邮箱服务器拒绝连接';
+  if (/ECONNRESET|EPIPE/i.test(value)) return '与邮箱服务器的连接被中断';
+  if (/certificate|TLS|handshake/i.test(value)) return '邮箱服务器 TLS 安全连接失败';
+  return `邮箱同步失败：${value}`;
+}
+
 function matches(value, query) {
   return String(value || '').toLowerCase().includes(query);
 }
@@ -159,11 +264,11 @@ function render() {
 
   const recentRows = data.recent.slice(0, 10).map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${formatDate(row.received_at)}</td></tr>`);
   document.querySelector('#overview-recent').innerHTML = table(['邮箱', '发件人', '主题', '验证码', '收到时间'], recentRows);
-  document.querySelector('#messages-table').innerHTML = table(['邮箱', '发件人', '主题', '验证码', '置信度', '过期时间'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${row.confidence}%</td><td>${formatDate(row.expires_at)}</td></tr>`));
+  document.querySelector('#messages-table').innerHTML = table(['邮箱', '发件人', '主题', '验证码', '验证码识别度', '验证码有效期'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${row.confidence}%</td><td>${formatDate(row.expires_at)}</td></tr>`));
   document.querySelector('#unmatched-table').innerHTML = table(['发件人', '主题', '收件信息', '收到时间'], data.unmatched.map((row) => `<tr><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>`));
-  document.querySelector('#audit-table').innerHTML = table(['操作者', '动作', '目标', '时间'], data.audit.slice(0, 12).map((row) => `<tr><td>${escapeHtml(row.actor)}</td><td>${escapeHtml(row.action)}</td><td>${escapeHtml(row.target || row.detail)}</td><td>${formatDate(row.created_at)}</td></tr>`));
+  document.querySelector('#audit-table').innerHTML = table(['操作者', '操作', '对象/详情', '时间'], data.audit.slice(0, 12).map((row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>`));
 
-  document.querySelector('#accounts-table').innerHTML = table(['邮箱', '服务商', 'IMAP', '状态', '最后同步', '操作'], data.accounts.map((row) => `<tr><td><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<br><small class="danger-text">${escapeHtml(row.last_error)}</small>` : ''}</td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td>${escapeHtml(row.host)}:${row.port}</td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
+  document.querySelector('#accounts-table').innerHTML = table(['邮箱', '服务商', 'IMAP', '状态', '最后同步', '操作'], data.accounts.map((row) => `<tr><td><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<br><small class="danger-text">${escapeHtml(mailErrorLabel(row.last_error))}</small>` : ''}</td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td>${escapeHtml(row.host)}:${row.port}</td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
   document.querySelector('#aliases-table').innerHTML = table(['邮箱', '备注', '密钥提示', '状态', '最近收信', '操作'], filteredAliases.map((row) => `<tr><td><strong>${escapeHtml(row.address)}</strong></td><td>${escapeHtml(row.label || '-')}</td><td>末六位 ${escapeHtml(row.token_hint || '-')}${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑邮箱" aria-label="编辑邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除邮箱" aria-label="删除邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
   document.querySelector('#totp-entries-table').innerHTML = table(['平台', '账号', '密钥提示', '来源', '最近使用', '操作'], filteredTotps.map((row) => `<tr><td><div class="admin-totp-platform">${renderTotpAvatar(row.issuer)}<strong>${escapeHtml(row.issuer || '未命名平台')}</strong></div></td><td>${escapeHtml(row.account_name || '-')}</td><td>末四位 ${escapeHtml(row.secret_hint || '-')}</td><td>${row.legacy_alias_address ? `由旧配置迁移<br><small class="muted">${escapeHtml(row.legacy_alias_address)}</small>` : '前端直接添加'}</td><td>${formatDate(row.last_used_at || row.created_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-totp-edit="${row.id}" title="编辑 2FA 备注" aria-label="编辑 2FA 备注"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-totp-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥与验证码</span></button><button class="btn btn-danger btn-icon" title="删除 2FA" aria-label="删除 2FA" data-totp-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
   document.querySelector('#sessions-table').innerHTML = table(['设备', '登录时间', '过期时间', '状态', '操作'], data.sessions.map((row) => `<tr><td><strong>${escapeHtml(sessionDevice(row.user_agent))}</strong></td><td>${formatDate(row.created_at)}</td><td>${formatDate(row.expires_at)}</td><td>${row.current ? '<span class="badge">当前会话</span>' : '<span class="badge off">其他会话</span>'}</td><td>${row.current ? '<span class="muted">正在使用</span>' : `<button class="btn btn-danger" data-session-revoke="${row.session_id}">退出此设备</button>`}</td></tr>`));
