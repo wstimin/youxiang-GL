@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-13">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260809-14">
 </head>
 <body class="public-shell">
   <header class="public-head">
@@ -22,11 +22,11 @@
             <div><strong>安全收件箱</strong><small>只读邮件中心</small></div>
           </div>
           <div class="access-nav-label">邮件</div>
-          <div class="access-nav-preview active"><i data-lucide="inbox"></i><span>全部邮件</span></div>
-          <div class="access-nav-preview"><i data-lucide="badge-check"></i><span>验证码邮件</span></div>
+          <button class="access-nav-preview active" type="button" data-access-view="mail" data-mail-filter="all"><i data-lucide="inbox"></i><span>全部邮件</span></button>
+          <button class="access-nav-preview" type="button" data-access-view="mail" data-mail-filter="code"><i data-lucide="badge-check"></i><span>验证码邮件</span></button>
           <div class="access-nav-label">工具</div>
-          <div class="access-nav-preview"><i data-lucide="list-checks"></i><span>批量查码</span></div>
-          <div class="access-nav-preview"><i data-lucide="fingerprint"></i><span>2FA 工具</span></div>
+          <button class="access-nav-preview" type="button" data-access-view="batch"><i data-lucide="list-checks"></i><span>批量查码</span></button>
+          <button class="access-nav-preview" type="button" data-access-view="totp"><i data-lucide="fingerprint"></i><span>2FA 工具</span></button>
           <div class="access-navigation-foot"><i data-lucide="shield-check"></i><span>安全只读模式</span></div>
         </aside>
 
@@ -154,6 +154,6 @@
   <footer class="public-foot">邮件仅保留 7 天，不加载远程图片，不提供发送、删除或其他远端写操作。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260809-13"></script>
+  <script src="/assets/query.js?v=20260809-14"></script>
 </body>
 </html>

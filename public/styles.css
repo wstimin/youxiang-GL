@@ -269,8 +269,10 @@ a { color: inherit; }
 .access-product strong { font-size: 13px; }
 .access-product small { color: var(--muted); font-size: 11px; }
 .access-nav-label { padding: 9px 10px 7px; color: #8b989f; font-size: 10px; font-weight: 800; }
-.access-nav-preview { min-height: 41px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 6px; color: #65737c; font-size: 12px; font-weight: 700; }
+.access-nav-preview { width: 100%; min-height: 41px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: #65737c; font-size: 12px; font-weight: 700; text-align: left; }
 .access-nav-preview svg { width: 17px; height: 17px; }
+.access-nav-preview:hover { background: #eaf1ef; color: var(--text); }
+.access-nav-preview:focus-visible { outline: 3px solid rgba(8,127,120,.18); outline-offset: 1px; }
 .access-nav-preview.active { background: var(--brand-soft); color: var(--brand-dark); }
 .access-navigation-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 14px 9px 2px; border-top: 1px solid var(--line); color: #60716f; font-size: 11px; font-weight: 700; }
 .access-navigation-foot svg { width: 16px; height: 16px; color: var(--brand); }
@@ -664,7 +666,10 @@ tr:last-child td { border-bottom: 0; }
   .public-shell:has(.public-inbox-workspace:not(.hidden)) .public-main { padding: 0 0 66px; }
   .access-view { padding: 0 0 26px; }
   .access-workspace { min-height: 0; display: block; overflow: visible; border: 0; box-shadow: none; background: transparent; }
-  .access-navigation { display: none; }
+  .access-navigation { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 6px; border: 1px solid var(--line); border-bottom: 0; }
+  .access-product, .access-navigation .access-nav-label, .access-navigation-foot { display: none; }
+  .access-nav-preview { min-height: 54px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 3px; font-size: 10px; text-align: center; }
+  .access-nav-preview span { display: block; }
   .access-mail-preview { min-height: 275px; border: 1px solid var(--line); border-bottom: 0; }
   .access-preview-head { min-height: 66px; padding: 13px 14px; }
   .access-preview-head strong { font-size: 16px; }

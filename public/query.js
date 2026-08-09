@@ -198,6 +198,22 @@ function setPublicView(view) {
   else clearTimeout(mailRefreshTimer);
 }
 
+function selectAccessMail(filter = 'all') {
+  mailState.filter = filter;
+  accessView.classList.remove('hidden');
+  inboxWorkspace.classList.add('hidden');
+  document.querySelectorAll('[data-access-view]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.accessView === 'mail' && button.dataset.mailFilter === filter);
+  });
+  mailTokenInput.focus();
+}
+
+function openPublicTool(view) {
+  accessView.classList.add('hidden');
+  inboxWorkspace.classList.remove('hidden');
+  setPublicView(view);
+}
+
 function resetMailDetail() {
   mailState.selectedId = null;
   mailDetail.classList.remove('mobile-visible');
@@ -483,6 +499,10 @@ async function refreshTotps() {
 document.querySelectorAll('[data-public-view]').forEach((button) => button.addEventListener('click', async () => {
   if (button.dataset.publicView === 'mail') {
     const filter = button.dataset.mailFilter || 'all';
+    if (!mailState.token) {
+      selectAccessMail(filter);
+      return;
+    }
     const changed = mailState.filter !== filter;
     mailState.filter = filter;
     mailListTitle.textContent = filter === 'code' ? '验证码邮件' : '全部邮件';
@@ -493,6 +513,15 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
     return;
   }
   setPublicView(button.dataset.publicView);
+}));
+
+document.querySelectorAll('[data-access-view]').forEach((button) => button.addEventListener('click', () => {
+  const view = button.dataset.accessView;
+  if (view === 'mail') {
+    selectAccessMail(button.dataset.mailFilter || 'all');
+    return;
+  }
+  openPublicTool(view);
 }));
 
 mailForm.addEventListener('submit', async (event) => {
@@ -525,9 +554,7 @@ changeKeyButton.addEventListener('click', () => {
   mailSearchInput.value = '';
   mailMessageList.replaceChildren();
   resetMailDetail();
-  inboxWorkspace.classList.add('hidden');
-  accessView.classList.remove('hidden');
-  mailTokenInput.focus();
+  selectAccessMail('all');
 });
 
 refreshMailButton.addEventListener('click', async () => {
