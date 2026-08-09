@@ -77,7 +77,7 @@ test('public inbox is three-column, cursor-paged, and hides commercial account s
   assert.match(html, /class="public-inbox-nav"/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
-  assert.match(styles, /grid-template-columns: 220px minmax\(320px, 390px\) minmax\(420px, 1fr\)/);
+  assert.match(styles, /grid-template-columns: 210px minmax\(350px, 430px\) minmax\(460px, 1fr\)/);
   assert.match(publicQuery, /new IntersectionObserver/);
   assert.match(publicQuery, /cursor: reset \? null : mailState\.cursor/);
   assert.match(publicQuery, /request\('\/api\/query\/message'/);

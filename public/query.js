@@ -109,17 +109,16 @@ function setPublicView(view) {
 function resetMailDetail() {
   mailState.selectedId = null;
   mailDetail.classList.remove('mobile-visible');
-  mailDetail.innerHTML = '<div class="public-detail-empty"><i data-lucide="mail-open"></i><strong>选择一封邮件</strong><span>正文将在点击后按需、安全地加载。</span></div>';
+  mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看纯文本正文与验证码。</span></div>';
   renderIcons();
 }
 
 function renderMessageItem(message) {
   const hasCode = Boolean(message.hasCode || message.codeMasked);
   return `<button class="public-message-item" type="button" data-message-id="${message.id}">
-    <span class="public-message-row"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span>
-    <span class="public-message-subject">${escapeHtml(message.subject || '无主题')}</span>
-    <span class="public-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span>
-    <span class="public-message-foot">${hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>验证码</span>' : '<span>普通邮件</span>'}<i data-lucide="chevron-right"></i></span>
+    <span class="public-message-row"><span class="public-sender"><span class="public-sender-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span><strong>${escapeHtml(message.sender || '未知发件人')}</strong></span><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span>
+    <span class="public-message-copy"><span class="public-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="public-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span></span>
+    <span class="public-message-foot">${hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>已提取验证码</span>' : '<span>邮件</span>'}<i data-lucide="chevron-right"></i></span>
   </button>`;
 }
 
@@ -199,9 +198,9 @@ async function openMailMessage(message, button) {
     <dl class="public-detail-meta">
       <div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div>
       <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div>
-      <div><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div>
+      <div class="public-detail-code-cell"><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div>
     </dl>
-    <pre class="public-detail-body"></pre>`;
+    <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>纯文本正文</span></div><pre class="public-detail-body"></pre></section>`;
     mailDetail.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的纯文本正文。';
     mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => mailDetail.classList.remove('mobile-visible'));
     const copyButton = mailDetail.querySelector('[data-copy-detail-code]');

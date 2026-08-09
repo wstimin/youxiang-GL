@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-10">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260809-11">
 </head>
 <body class="public-shell">
   <header class="public-head">
@@ -15,19 +15,57 @@
 
   <main class="public-main">
     <section id="access-view" class="access-view" aria-labelledby="access-title">
-      <div class="access-panel">
-        <span class="access-icon"><i data-lucide="key-round"></i></span>
-        <span class="eyebrow">SECURE INBOX</span>
-        <h1 id="access-title">打开你的收件箱</h1>
-        <p>输入查询密钥后查看最近 7 天邮件。密钥只保留在当前页面内存中。</p>
-        <form id="mail-query-form">
-          <div class="field">
-            <label for="mail-token">查询密钥</label>
-            <input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="cv_...">
+      <div class="access-workspace">
+        <aside class="access-navigation" aria-label="邮件中心功能预览">
+          <div class="access-product">
+            <span class="access-product-mark"><i data-lucide="mail-check"></i></span>
+            <div><strong>安全收件箱</strong><small>只读邮件中心</small></div>
           </div>
-          <p id="mail-query-error" class="message" role="alert"></p>
-          <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="unlock-keyhole" class="icon"></i><span>进入收件箱</span></button>
-        </form>
+          <div class="access-nav-label">邮件</div>
+          <div class="access-nav-preview active"><i data-lucide="inbox"></i><span>全部邮件</span></div>
+          <div class="access-nav-preview"><i data-lucide="badge-check"></i><span>验证码邮件</span></div>
+          <div class="access-nav-label">工具</div>
+          <div class="access-nav-preview"><i data-lucide="list-checks"></i><span>批量查码</span></div>
+          <div class="access-nav-preview"><i data-lucide="fingerprint"></i><span>2FA 工具</span></div>
+          <div class="access-navigation-foot"><i data-lucide="shield-check"></i><span>安全只读模式</span></div>
+        </aside>
+
+        <section class="access-mail-preview" aria-hidden="true">
+          <header class="access-preview-head">
+            <div><span class="pane-kicker">INBOX</span><strong>最近邮件</strong></div>
+            <span class="access-lock-state"><i data-lucide="lock-keyhole"></i>已锁定</span>
+          </header>
+          <div class="access-preview-search"><i data-lucide="search"></i><span>搜索发件人或主题</span></div>
+          <div class="access-preview-list">
+            <div class="access-preview-item"><span class="preview-avatar">A</span><div><strong></strong><span></span><small></small></div></div>
+            <div class="access-preview-item"><span class="preview-avatar">M</span><div><strong></strong><span></span><small></small></div></div>
+            <div class="access-preview-item"><span class="preview-avatar">S</span><div><strong></strong><span></span><small></small></div></div>
+            <div class="access-preview-item"><span class="preview-avatar">N</span><div><strong></strong><span></span><small></small></div></div>
+          </div>
+        </section>
+
+        <div class="access-entry">
+          <div class="access-panel">
+            <div class="access-title-row">
+              <span class="access-icon"><i data-lucide="key-round"></i></span>
+              <div><span class="eyebrow">SECURE ACCESS</span><h1 id="access-title">验证访问密钥</h1></div>
+            </div>
+            <p>验证后进入只读收件箱，查看最近 7 天邮件与验证码。</p>
+            <form id="mail-query-form">
+              <div class="field access-key-field">
+                <label for="mail-token">查询密钥</label>
+                <div class="access-input-wrap"><i data-lucide="key-round"></i><input id="mail-token" name="token" type="password" autocomplete="off" minlength="20" required placeholder="输入 cv_ 开头的查询密钥"></div>
+              </div>
+              <p id="mail-query-error" class="message" role="alert"></p>
+              <button class="btn btn-primary btn-block btn-large" type="submit"><i data-lucide="unlock-keyhole" class="icon"></i><span>进入安全收件箱</span></button>
+            </form>
+            <div class="access-assurance">
+              <span><i data-lucide="eye"></i>只读访问</span>
+              <span><i data-lucide="file-lock-2"></i>正文按需加载</span>
+              <span><i data-lucide="calendar-clock"></i>邮件保留 7 天</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -35,7 +73,7 @@
       <aside class="public-inbox-nav">
         <div class="public-session">
           <span class="public-session-icon"><i data-lucide="shield-check"></i></span>
-          <div><strong>当前会话</strong><small>只读访问</small></div>
+          <div><strong>安全收件箱</strong><small>当前为只读访问</small></div>
         </div>
 
         <nav class="public-nav" aria-label="功能导航">
@@ -69,7 +107,7 @@
       </section>
 
       <article id="mail-detail" class="public-message-detail">
-        <div class="public-detail-empty"><i data-lucide="mail-open"></i><strong>选择一封邮件</strong><span>正文将在点击后按需、安全地加载。</span></div>
+        <div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看纯文本正文与验证码。</span></div>
       </article>
 
       <section id="batch-view" class="public-tool-view hidden" aria-labelledby="batch-title">
@@ -111,6 +149,6 @@
   <footer class="public-foot">邮件仅保留 7 天，不加载远程图片，不提供发送、删除或其他远端写操作。</footer>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260809-10"></script>
+  <script src="/assets/query.js?v=20260809-11"></script>
 </body>
 </html>

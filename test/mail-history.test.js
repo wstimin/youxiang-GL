@@ -63,7 +63,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
 });
 
 test('public mail UI renders plain text bodies and seven-day history', () => {
-  assert.match(html, /输入查询密钥后查看最近 7 天邮件/);
+  assert.match(html, /验证后进入只读收件箱，查看最近 7 天邮件与验证码/);
   assert.match(html, /id="inbox-workspace"/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
