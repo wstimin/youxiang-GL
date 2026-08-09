@@ -68,8 +68,8 @@ test('alias secret exports use address--token text format', () => {
   assert.match(admin, /`\$\{row\.address\}--\$\{row\.token\}`/);
   assert.match(admin, /text\/plain;charset=utf-8/);
   assert.match(admin, /icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt/g);
-  assert.match(admin, /downloadText\([^,]+, formatAliasSecrets\(data\.created\)\)/);
-  assert.match(admin, /downloadText\([^,]+, formatAliasSecrets\(data\.aliases\)\)/);
+  assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.created\)\)/);
+  assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.aliases\)\)/);
 });
 
 test('mail accounts support fixed iCloud, Gmail, and Outlook provider presets', () => {
