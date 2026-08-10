@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260810-20">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260810-22">
 </head>
 <body class="public-shell public-app-open">
   <main class="public-main">
@@ -33,7 +33,7 @@
       </header>
 
       <section id="mail-view" class="public-page public-mail-page" aria-label="邮箱">
-        <header class="public-tool-head"><div><span class="pane-kicker">MAILBOX</span><h1>邮箱</h1><p>输入查询密钥后，在右侧查看邮件或接收验证码。</p></div></header>
+        <header class="public-tool-head"><div><span class="pane-kicker">MAILBOX</span><h1>邮箱</h1><p>输入查询密钥后，在右侧查看邮件信息。</p></div></header>
         <div class="public-tool-layout public-mail-layout">
           <form id="mail-query-form" class="public-tool-form mail-query-form">
             <div class="field">
@@ -43,11 +43,11 @@
             <p id="mail-query-error" class="message" role="alert"></p>
             <div class="mail-action-buttons" role="group" aria-label="邮箱操作">
               <button class="btn btn-secondary active" type="submit" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>查看收件箱</span><strong id="mail-total-count">0</strong></button>
-              <button class="btn btn-secondary" type="submit" data-mail-filter="code"><i data-lucide="badge-check" class="icon"></i><span>接收验证码</span><strong id="mail-code-count">0</strong></button>
+              <button class="btn btn-secondary" type="submit" data-mail-filter="code"><i data-lucide="filter" class="icon"></i><span>只看验证码邮件</span></button>
             </div>
           </form>
           <div class="mail-results-pane">
-            <div id="mail-placeholder" class="public-tool-placeholder"><i data-lucide="mail-search"></i><strong>邮箱结果显示在这里</strong><span>输入查询密钥后，可以查看收件箱、搜索邮件或接收验证码。</span></div>
+            <div id="mail-placeholder" class="public-tool-placeholder"><i data-lucide="mail-search"></i><strong>邮箱结果显示在这里</strong><span>输入查询密钥后，可以查看收件箱或搜索邮件信息。</span></div>
             <section id="mail-list-pane" class="public-message-pane hidden">
               <header class="public-pane-head">
                 <div class="public-pane-title"><span class="pane-kicker">MAILBOX</span><h1 id="mail-list-title">邮箱</h1><small id="mail-last-refresh">尚未更新</small></div>
@@ -67,7 +67,7 @@
               </div>
             </section>
             <article id="mail-detail" class="public-message-detail hidden">
-              <div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看纯文本正文与验证码。</span></div>
+              <div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看邮件信息。</span></div>
             </article>
           </div>
         </div>
@@ -149,6 +149,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260810-20"></script>
+  <script src="/assets/query.js?v=20260810-21"></script>
 </body>
 </html>

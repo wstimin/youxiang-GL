@@ -47,8 +47,8 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-avatar-body"/);
   assert.match(adminHtml, /id="unmatched-table"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(adminHtml, /admin\.js\?v=20260809-10/);
-  assert.match(adminHtml, /styles\.css\?v=20260809-9/);
+  assert.match(adminHtml, /admin\.js\?v=20260810-21/);
+  assert.match(adminHtml, /styles\.css\?v=20260810-22/);
   assert.doesNotMatch(adminHtml, /class="nav-totp"|class="twofa-mark"/);
   assert.doesNotMatch(adminHtml, /data-lucide="shield-keyhole"/);
   assert.match(styles, /\.nav button > span/);
@@ -168,6 +168,7 @@ test('administrator records and mailbox errors use Chinese display labels', () =
   assert.match(admin, /function mailErrorLabel/);
   assert.match(admin, /连接邮箱服务器超时，请检查服务器出站网络和 TCP 993 端口/);
   assert.match(admin, /邮箱登录失败，请检查邮箱地址和应用专用密码/);
-  assert.match(admin, /验证码识别度/);
-  assert.match(admin, /验证码有效期/);
+  assert.match(admin, /邮件信息/);
+  assert.doesNotMatch(admin, /message\.code|message\.codeMasked|code_masked|验证码识别度|验证码有效期/);
+  assert.doesNotMatch(adminHtml, /最近验证码|纯文本邮件|只看验证码</);
 });

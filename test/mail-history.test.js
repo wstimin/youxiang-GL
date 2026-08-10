@@ -67,7 +67,9 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
 });
 
 test('public mail UI renders plain text bodies and seven-day history', () => {
-  assert.match(html, /输入查询密钥后，在右侧查看邮件或接收验证码/);
+  assert.match(html, /输入查询密钥后，在右侧查看邮件信息/);
+  assert.match(html, /只看验证码邮件/);
+  assert.doesNotMatch(html, /mail-code-count/);
   assert.match(html, /id="inbox-workspace"/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
@@ -80,6 +82,8 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /scheduleMailRefresh/);
   assert.doesNotMatch(script, /data\.mode === 'code'|mailState\.mode|function renderCodeMessage/);
   assert.doesNotMatch(script, /detail\.body[^\n]*innerHTML/);
+  assert.match(script, /邮件信息/);
+  assert.doesNotMatch(script, /纯文本正文|已提取验证码|data-copy-detail-code|detail\.code|message\.hasCode|message\.codeMasked/);
   assert.match(readme, /邮件默认保存 7 天/);
   assert.match(readme, /不保存附件/);
   assert.match(readme, /不加载远程图片/);

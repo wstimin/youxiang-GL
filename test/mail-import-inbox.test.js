@@ -88,7 +88,7 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(html, /<header class="public-tool-head">[\s\S]*?<h1>邮箱<\/h1>/);
   assert.match(html, /<form id="mail-query-form" class="public-tool-form mail-query-form">/);
   assert.match(html, /data-mail-filter="all"[\s\S]*?查看收件箱/);
-  assert.match(html, /data-mail-filter="code"[\s\S]*?接收验证码/);
+  assert.match(html, /data-mail-filter="code"[\s\S]*?只看验证码邮件/);
   assert.doesNotMatch(html, /mail-function-pane|mail-access-panel|id="access-view"|access-app-bar|access-content|access-mail-preview/);
   assert.match(styles, /\.public-mail-layout \{ grid-template-columns: minmax\(330px, \.72fr\) minmax\(440px, 1\.28fr\)/);
   assert.match(styles, /\.mail-action-buttons \{ display: grid; gap: 9px; \}/);
@@ -116,7 +116,8 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.doesNotMatch(listRoute, /alias:\s*alias|address:\s*alias|label:\s*alias/);
   assert.doesNotMatch(detailRoute, /recipients_encrypted|recipients\s*=/);
   assert.doesNotMatch(listRoute, /decrypt\(message\.code_encrypted\)|code:\s*codeActive/);
-  assert.match(detailRoute, /message\.code = message\.hasCode \? decrypt\(row\.code_encrypted\) : null/);
+  assert.doesNotMatch(detailRoute, /message\.code|decrypt\(row\.code_encrypted\)|codeMasked|confidence/);
+  assert.match(detailRoute, /message\.body = decrypt\(row\.body_text_encrypted\)/);
   const batchRoute = server.slice(
     server.indexOf("app.post('/api/query/batch'"),
     server.indexOf("app.post('/api/query/batch-inbox'")
@@ -124,7 +125,7 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.doesNotMatch(batchRoute, /a\.address|a\.label|alias:\s*maskEmail|label:\s*alias/);
 });
 
-test('batch inbox searches seven-day mail and keeps results grouped by masked mailbox', () => {
+test('batch inbox searches seven-day mail and keeps results grouped by full mailbox address', () => {
   const html = fs.readFileSync('public/index.html', 'utf8');
   const styles = fs.readFileSync('public/styles.css', 'utf8');
   const batchInboxRoute = server.slice(
@@ -142,6 +143,8 @@ test('batch inbox searches seven-day mail and keeps results grouped by masked ma
   assert.match(batchInboxRoute, /mailbox = publicMailboxResponse\(alias, stats, runtime\)/);
   assert.match(batchInboxRoute, /mailbox\.matchedMessages = stats\.matched_count/);
   assert.match(batchInboxRoute, /nextCursor:/);
+  assert.match(server, /address: alias\.address/);
+  assert.doesNotMatch(server, /maskEmail\(alias\.address\)/);
   assert.doesNotMatch(batchInboxRoute, /body_text_encrypted|recipients_encrypted|token_encrypted/);
   assert.match(html, /data-public-view="batch-inbox"/);
   assert.match(html, /id="batch-inbox-search"/);
@@ -151,6 +154,7 @@ test('batch inbox searches seven-day mail and keeps results grouped by masked ma
   assert.match(publicQuery, /data-batch-inbox-toggle/);
   assert.match(publicQuery, /batchInboxState\.expanded/);
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
+  assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|message\.codeMasked|data-copy-detail-code|纯文本正文/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
   assert.match(styles, /\.batch-inbox-group\.expanded \.batch-inbox-chevron/);
   assert.match(styles, /\.public-nav \{ min-width: 0; display: flex;[\s\S]*?overflow-x: auto;/);

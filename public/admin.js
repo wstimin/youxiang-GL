@@ -269,10 +269,10 @@ function render() {
   const messageCount = document.querySelector('#message-count');
   if (messageCount) messageCount.textContent = `${filteredMessages.length}/${data.recent.length} 条`;
 
-  const recentRows = data.recent.slice(0, 10).map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${formatDate(row.received_at)}</td></tr>`);
-  document.querySelector('#overview-recent').innerHTML = table(['邮箱', '文件夹', '发件人', '主题', '验证码', '收到时间'], recentRows);
+  const recentRows = data.recent.slice(0, 10).map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${formatDate(row.received_at)}</td></tr>`);
+  document.querySelector('#overview-recent').innerHTML = table(['邮箱', '文件夹', '发件人', '主题', '收到时间'], recentRows);
   const legacyMessageTable = document.querySelector('#messages-table');
-  if (legacyMessageTable) legacyMessageTable.innerHTML = table(['邮箱', '发件人', '主题', '验证码', '验证码识别度', '验证码有效期'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${row.confidence}%</td><td>${formatDate(row.expires_at)}</td></tr>`));
+  if (legacyMessageTable) legacyMessageTable.innerHTML = table(['邮箱', '发件人', '主题', '收到时间'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${formatDate(row.received_at)}</td></tr>`));
   document.querySelector('#unmatched-table').innerHTML = table(['文件夹', '发件人', '主题', '收件信息', '收到时间'], data.unmatched.map((row) => `<tr><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>`));
   document.querySelector('#audit-table').innerHTML = table(['操作者', '操作', '对象/详情', '时间'], data.audit.slice(0, 12).map((row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>`));
 
@@ -313,7 +313,7 @@ async function loadInboxMailboxes(reset = false) {
 function renderInboxMessages(messages, append = false) {
   const list = document.querySelector('#inbox-message-list');
   if (!list) return;
-  const markup = messages.map((message) => `<button class="inbox-message${String(message.id) === String(inbox.selectedId) ? ' active' : ''}" type="button" data-inbox-message="${message.id}"><div class="inbox-message-head"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time>${escapeHtml(formatDate(message.receivedAt))}</time></div><h3>${escapeHtml(message.subject || '无主题')}</h3><p>${escapeHtml(message.bodyPreview || '无正文摘要')}</p><div class="inbox-message-foot"><span>${escapeHtml(message.mailbox)} · ${escapeHtml(formatFolders(message.folders))}</span><span>${message.codeMasked ? `验证码 ${escapeHtml(message.codeMasked)}` : '未提取验证码'}</span></div></button>`).join('');
+  const markup = messages.map((message) => `<button class="inbox-message${String(message.id) === String(inbox.selectedId) ? ' active' : ''}" type="button" data-inbox-message="${message.id}"><div class="inbox-message-head"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time>${escapeHtml(formatDate(message.receivedAt))}</time></div><h3>${escapeHtml(message.subject || '无主题')}</h3><p>${escapeHtml(message.bodyPreview || '无邮件摘要')}</p><div class="inbox-message-foot"><span>${escapeHtml(message.mailbox)} · ${escapeHtml(formatFolders(message.folders))}</span></div></button>`).join('');
   if (!append) list.innerHTML = markup || empty('暂无邮件'); else list.insertAdjacentHTML('beforeend', markup);
   list.querySelectorAll('[data-inbox-message]').forEach((button) => button.addEventListener('click', () => openInboxMessage(button.dataset.inboxMessage)));
 }
@@ -352,7 +352,7 @@ async function openInboxMessage(id) {
   detail.innerHTML = '<div class="empty">正在解密邮件正文</div>';
   const data = await api(`/api/admin/messages/${id}`);
   const message = data.message;
-  detail.innerHTML = `<header class="inbox-detail-head"><div><span class="card-kicker">MAIL MESSAGE</span><h2>${escapeHtml(message.subject || '无主题')}</h2></div><span class="badge">${escapeHtml(message.mailbox)}</span></header><dl class="inbox-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(message.sender || '未知')}</dd></div><div><dt>收件人</dt><dd>${escapeHtml(message.recipients || '未知')}</dd></div><div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(message.folders))}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatDate(message.receivedAt))}</dd></div><div><dt>验证码</dt><dd>${escapeHtml(message.code || message.codeMasked || '未提取')}</dd></div></dl><pre class="inbox-body">${escapeHtml(message.body || '这封邮件没有可显示的纯文本正文。')}</pre>`;
+  detail.innerHTML = `<header class="inbox-detail-head"><div><span class="card-kicker">MAIL MESSAGE</span><h2>${escapeHtml(message.subject || '无主题')}</h2></div><span class="badge">${escapeHtml(message.mailbox)}</span></header><dl class="inbox-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(message.sender || '未知')}</dd></div><div><dt>收件人</dt><dd>${escapeHtml(message.recipients || '未知')}</dd></div><div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(message.folders))}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatDate(message.receivedAt))}</dd></div></dl><div class="inbox-body-label">邮件信息</div><pre class="inbox-body">${escapeHtml(message.body || '这封邮件没有可显示的邮件信息。')}</pre>`;
 }
 
 async function loadState() {

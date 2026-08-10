@@ -9,7 +9,7 @@ const { authenticator } = require('otplib');
 const { parseTotpInput, generateTotp } = require('./totp');
 const {
   pool, initDatabase, randomToken, digest, encrypt, decrypt, hashPassword,
-  verifyPassword, normalizeEmail, validEmail, maskEmail, extractClientIp,
+  verifyPassword, normalizeEmail, validEmail, extractClientIp,
   audit, cleanExpired
 } = require('./lib');
 
@@ -135,7 +135,6 @@ async function createMailImportItem(client, jobId, item, status = 'waiting', fai
 }
 
 function adminMailMessageResponse(row) {
-  const codeActive = row.code_encrypted && row.code_expires_at && new Date(row.code_expires_at) > new Date();
   return {
     id: row.id,
     folders: Array.isArray(row.mailbox_paths) ? row.mailbox_paths : [],
@@ -144,9 +143,6 @@ function adminMailMessageResponse(row) {
     recipients: decrypt(row.recipients_encrypted) || '',
     subject: row.subject,
     body: decrypt(row.body_text_encrypted) || '',
-    code: codeActive ? decrypt(row.code_encrypted) : null,
-    codeMasked: codeActive ? row.code_masked : null,
-    confidence: row.confidence,
     receivedAt: row.received_at
   };
 }
@@ -211,12 +207,11 @@ function publicMailboxResponse(alias, stats, runtime) {
   else if (alias.account_status === 'connected') state = 'ready';
   else if (alias.account_status === 'error') state = 'delayed';
   return {
-    address: maskEmail(alias.address),
+    address: alias.address,
     state,
     lastSyncedAt: alias.last_synced_at,
     lastMessageAt: stats.latest_received_at,
     totalMessages: stats.total_count,
-    activeCodes: stats.code_count,
     retentionDays: mailRetentionDays,
     refreshAfterSeconds: publicRefreshSeconds
   };
@@ -241,16 +236,12 @@ function mailMessageResponse(message, includeBody = false) {
 }
 
 function publicMailMessageResponse(message) {
-  const codeActive = message.code_encrypted && message.code_expires_at && new Date(message.code_expires_at).getTime() > Date.now();
   return {
     id: message.id,
     folders: Array.isArray(message.mailbox_paths) ? message.mailbox_paths : [],
     sender: message.sender,
     subject: message.subject,
     bodyPreview: message.body_preview || '',
-    hasCode: Boolean(codeActive),
-    codeMasked: codeActive ? message.code_masked : null,
-    confidence: message.confidence,
     receivedAt: message.received_at
   };
 }
@@ -454,8 +445,7 @@ app.post('/api/query', async (req, res, next) => {
     const cursor = parsePublicCursor(req.body.cursor);
     if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
     const [messageResult, statsResult, runtimeResult] = await Promise.all([pool.query(
-      `SELECT id, sender, subject, body_preview, mailbox_paths, code_encrypted, code_masked,
-              confidence, code_expires_at, received_at
+      `SELECT id, sender, subject, body_preview, mailbox_paths, received_at
        FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()
          AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
@@ -467,9 +457,6 @@ app.post('/api/query', async (req, res, next) => {
       [alias.id, keyword, codeOnly, cursor.receivedAt, cursor.id, limit + 1]
     ), pool.query(
       `SELECT COUNT(*)::int AS total_count,
-              COUNT(*) FILTER (
-                WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
-              )::int AS code_count,
               MAX(received_at) AS latest_received_at
        FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()`,
@@ -510,8 +497,7 @@ app.post('/api/query/message', async (req, res, next) => {
     if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
     const result = await pool.query(
       `SELECT id, sender, subject, body_text_encrypted, mailbox_paths,
-              body_preview, code_encrypted, code_masked, confidence,
-              code_expires_at, received_at
+              body_preview, received_at
        FROM mail_messages
        WHERE id = $1 AND alias_id = $2 AND mail_expires_at > NOW()`,
       [messageId, alias.id]
@@ -520,7 +506,6 @@ app.post('/api/query/message', async (req, res, next) => {
     await audit({ actor: `alias:${alias.id}`, action: 'query_message_success', target: String(messageId), ip });
     const row = result.rows[0];
     const message = publicMailMessageResponse(row);
-    message.code = message.hasCode ? decrypt(row.code_encrypted) : null;
     message.body = decrypt(row.body_text_encrypted) || '';
     return res.json({ message });
   } catch (error) { next(error); }
@@ -653,11 +638,9 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
     if (aliasIds.length) {
       const [messagesResult, statsResult] = await Promise.all([
         pool.query(
-          `SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, code_encrypted,
-                  code_masked, confidence, code_expires_at, received_at
+          `SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, received_at
            FROM (
-             SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, code_encrypted,
-                    code_masked, confidence, code_expires_at, received_at,
+             SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, received_at,
                     ROW_NUMBER() OVER (PARTITION BY alias_id ORDER BY received_at DESC, id DESC) AS row_number
              FROM mail_messages
              WHERE alias_id = ANY($1::bigint[]) AND mail_expires_at > NOW()
@@ -678,9 +661,6 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
                           OR body_preview ILIKE '%' || $2 || '%'
                           OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%'
                   )::int AS matched_count,
-                  COUNT(*) FILTER (
-                    WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
-                  )::int AS code_count,
                   MAX(received_at) AS latest_received_at
            FROM mail_messages
            WHERE alias_id = ANY($1::bigint[]) AND mail_expires_at > NOW()
@@ -701,7 +681,7 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
       const alias = aliasesByDigest.get(tokenDigests[index]);
       if (!alias) return { index, status: 'invalid', mailbox: null, messages: [], nextCursor: null };
       const stats = statsByAlias.get(alias.id) || {
-        total_count: 0, matched_count: 0, code_count: 0, latest_received_at: null
+        total_count: 0, matched_count: 0, latest_received_at: null
       };
       const aliasMessageRows = messageRowsByAlias.get(alias.id) || [];
       const visibleRows = aliasMessageRows.slice(0, limitPerMailbox);
@@ -829,8 +809,10 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
       FROM aliases a ORDER BY a.id DESC`),
     pool.query(`SELECT id, secret_hint, issuer, account_name, legacy_alias_address, last_used_at, created_at
       FROM totp_entries ORDER BY id DESC`),
-    pool.query(`SELECT v.id, v.alias_id, a.address, v.sender, v.subject, v.mailbox_paths, v.code_masked, v.confidence, v.received_at, v.expires_at
-      FROM verification_messages v LEFT JOIN aliases a ON a.id = v.alias_id ORDER BY v.received_at DESC LIMIT 50`),
+    pool.query(`SELECT mm.id, mm.alias_id, a.address, mm.sender, mm.subject, mm.mailbox_paths, mm.received_at
+      FROM mail_messages mm LEFT JOIN aliases a ON a.id = mm.alias_id
+      WHERE mm.mail_expires_at > NOW()
+      ORDER BY mm.received_at DESC LIMIT 50`),
     pool.query(`SELECT id, sender, subject, mailbox_paths, recipient_headers, received_at FROM unmatched_messages ORDER BY received_at DESC LIMIT 30`),
     pool.query(`SELECT actor, action, target, detail, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 100`),
     pool.query(`SELECT
@@ -1001,7 +983,7 @@ app.get('/api/admin/messages', ...adminApi(async (req, res) => {
   }
   const result = await pool.query(
     `SELECT mm.id, mm.alias_id, a.address, mm.sender, mm.subject, mm.body_preview, mm.mailbox_paths,
-       mm.code_masked, mm.confidence, mm.code_expires_at, mm.received_at
+       mm.received_at
      FROM mail_messages mm
      LEFT JOIN aliases a ON a.id = mm.alias_id
      WHERE mm.mail_expires_at > NOW()
@@ -1026,8 +1008,6 @@ app.get('/api/admin/messages', ...adminApi(async (req, res) => {
       sender: row.sender,
       subject: row.subject,
       bodyPreview: row.body_preview,
-      codeMasked: row.code_expires_at && new Date(row.code_expires_at) > new Date() ? row.code_masked : null,
-      confidence: row.confidence,
       receivedAt: row.received_at
     })),
     nextCursor: hasMore && last
@@ -1040,8 +1020,7 @@ app.get('/api/admin/messages/:id', ...adminApi(async (req, res) => {
   noStore(res);
   const result = await pool.query(
     `SELECT mm.id, a.address, mm.sender, mm.recipients_encrypted, mm.subject, mm.mailbox_paths,
-       mm.body_text_encrypted, mm.code_encrypted, mm.code_masked, mm.confidence,
-       mm.code_expires_at, mm.received_at
+       mm.body_text_encrypted, mm.received_at
      FROM mail_messages mm LEFT JOIN aliases a ON a.id = mm.alias_id
      WHERE mm.id = $1 AND mm.mail_expires_at > NOW()`,
     [req.params.id]

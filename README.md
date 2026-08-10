@@ -24,7 +24,7 @@
 - 常驻 IMAP Worker、断线恢复、按邮件夹独立 UID 游标与 Message-ID 去重
 - 自动读取每个母邮箱下所有可选择的 IMAP 邮件夹，跳过仅用于组织层级的不可选择容器；同一封邮件出现在多个邮件夹时合并显示并列出全部来源
 - 按原始邮件头识别 `To`、`Delivered-To`、`X-Original-To` 等位置中的子邮箱
-- 子邮箱邮件正文加密保存 7 天，并显示发件人、主题、接收时间、纯文本正文和识别到的验证码
+- 子邮箱邮件信息加密保存 7 天，并显示完整邮箱地址、发件人、主题、接收时间和邮件信息
 - 中文和英文验证码提取、短期有效及自动清理
 - 查询 IP 限流、管理员审计、未匹配邮件检查
 - PostgreSQL 持久化、自动备份与保留策略、Caddy 自动 HTTPS、Docker Compose 一键运行
@@ -146,7 +146,7 @@ docker compose -f compose.production.yaml up -d --force-recreate web
 - 无法归类时，邮件会出现在“未匹配子邮箱”中。
 - 未匹配区只保存发件人、主题和原始邮件头，不保存正文。
 
-匹配成功的邮件会保存发件人、主题、接收时间、来源邮件夹和纯文本正文，正文使用 `MASTER_KEY_HEX` 进行 AES-256-GCM 加密并在 7 天后自动删除。系统会读取每个母邮箱下所有可选择的 IMAP 邮件夹，不只读取 `INBOX`；系统不保存附件，不向浏览器返回邮件 HTML，也不会加载邮件中的远程图片。每个邮件夹独立维护 UID 游标，首次同步会按 `MAIL_RETENTION_DAYS` 回补该邮件夹内的近期邮件。同一封邮件如果同时出现在多个 Gmail 标签或 IMAP 文件夹中，会合并为一封邮件并显示多个来源。已经从服务器删除的历史邮件无法恢复。
+匹配成功的邮件会保存发件人、主题、接收时间、来源邮件夹和邮件信息，正文使用 `MASTER_KEY_HEX` 进行 AES-256-GCM 加密并在 7 天后自动删除。系统会读取每个母邮箱下所有可选择的 IMAP 邮件夹，不只读取 `INBOX`；系统不保存附件，不向浏览器返回邮件 HTML，也不会加载邮件中的远程图片。每个邮件夹独立维护 UID 游标，首次同步会按 `MAIL_RETENTION_DAYS` 回补该邮件夹内的近期邮件。同一封邮件如果同时出现在多个 Gmail 标签或 IMAP 文件夹中，会合并为一封邮件并显示多个来源。已经从服务器删除的历史邮件无法恢复。
 
 如果原始邮件头完全不保留子邮箱地址，系统无法可靠区分该转发来源，需要调整转发规则或为该来源增加专用邮件头规则。
 
@@ -196,7 +196,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 - 邮件默认保存 7 天；验证码默认有效 10 分钟，到期后只清除验证码，不提前删除邮件。
 - 单个查询可读取 7 天文本邮件，并可筛选仍在有效期内的验证码邮件；批量验证码查询返回最新有效验证码。
 - 查询响应使用 `Cache-Control: no-store`，密钥通过 POST 请求传输，不进入 URL。
-- 邮件只保存纯文本正文，不保存附件，不加载远程图片。
+- 邮件只保存邮件信息，不保存附件，不加载远程图片。
 - PostgreSQL 不开放公网端口。
 - `.env`、数据库备份和 Docker 数据卷都应视为敏感数据。
 
@@ -212,7 +212,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 | `IMAP_POLL_SECONDS` | `15` | Worker 收信轮询间隔 |
 | `PUBLIC_MAIL_REFRESH_SECONDS` | `60` | 查询页面检查新邮件和邮箱状态的间隔秒数，范围 30-300 |
 | `MAX_MESSAGE_BYTES` | `1048576` | 单封邮件最多读取字节数，防止大附件占用内存 |
-| `MAX_BODY_CHARS` | `200000` | 单封邮件最多保存的纯文本正文字符数 |
+| `MAX_BODY_CHARS` | `200000` | 单封邮件最多保存的邮件信息字符数 |
 | `SESSION_HOURS` | `12` | 管理员登录会话时长 |
 | `QUERY_LIMIT_PER_10_MINUTES` | `30` | 单 IP 每十分钟查询上限 |
 | `BATCH_QUERY_LIMIT_PER_10_MINUTES` | `50` | 单 IP 每十分钟批量查询请求上限 |
