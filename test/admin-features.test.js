@@ -73,30 +73,17 @@ test('alias secret exports use address--token text format', () => {
   assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.aliases\)\)/);
 });
 
-test('administrator controls the global single-query verification mode', () => {
+test('mail history is always available without a global verification mode switch', () => {
   const stateRoute = server.slice(
     server.indexOf("app.get('/api/admin/state'"),
     server.indexOf("app.post('/api/admin/mail-account/:id/sync'")
   );
-  const settingsRoute = server.slice(
-    server.indexOf("app.post('/api/admin/settings/verification-mode'"),
-    server.indexOf("app.post('/api/admin/mail-account/:id/sync'")
-  );
-  const batchRoute = server.slice(
-    server.indexOf("app.post('/api/query/batch'"),
-    server.indexOf("app.post('/api/query/batch-inbox'")
-  );
 
-  assert.match(schema, /verification_mode_enabled/);
-  assert.match(stateRoute, /settings: \{ verificationModeEnabled: codeMode \}/);
-  assert.match(settingsRoute, /typeof req\.body\.enabled !== 'boolean'/);
-  assert.match(settingsRoute, /verification_mode_enabled/);
-  assert.match(settingsRoute, /verification_mode_disabled/);
-  assert.match(settingsRoute, /await audit\(/);
-  assert.match(adminHtml, /id="verification-mode-enabled"[^>]*type="checkbox"[^>]*role="switch"/);
-  assert.match(admin, /\/api\/admin\/settings\/verification-mode/);
-  assert.match(adminHtml, /批量查询始终固定为验证码方式/);
-  assert.doesNotMatch(batchRoute, /verificationModeEnabled|body_text_encrypted|bodyPreview/);
+  assert.doesNotMatch(schema, /verification_mode_enabled/);
+  assert.doesNotMatch(server, /verificationModeEnabled|settings\/verification-mode|query_message_blocked/);
+  assert.doesNotMatch(stateRoute, /settings:/);
+  assert.doesNotMatch(adminHtml, /verification-mode-enabled|单个查询验证码方式/);
+  assert.doesNotMatch(admin, /settings\/verification-mode/);
 });
 
 test('mail accounts support fixed iCloud, Gmail, and Outlook provider presets', () => {

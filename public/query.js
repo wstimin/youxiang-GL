@@ -70,7 +70,6 @@ const mailState = {
   cursor: null,
   loading: false,
   selectedId: null,
-  mode: 'text',
   latestId: null,
   lastRefreshAt: null,
   requestId: 0
@@ -128,6 +127,10 @@ function formatMailDate(value, detailed = false) {
   return date.toLocaleString('zh-CN', detailed
     ? { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }
     : { month: '2-digit', day: '2-digit' });
+}
+
+function formatFolders(folders) {
+  return Array.isArray(folders) && folders.length ? folders.join(' / ') : 'INBOX';
 }
 
 function formatSyncLabel(value) {
@@ -188,12 +191,8 @@ async function pollForNewMail(refreshSeconds = 60) {
     updateMailbox(data);
     const latestId = Number(data.messages?.[0]?.id || 0) || null;
     if (mailState.latestId && latestId && latestId !== mailState.latestId) {
-      if (data.mode === 'code') {
-        await loadMessages({ reset: true });
-      } else {
-        newMailBanner.classList.remove('hidden');
-        renderIcons();
-      }
+      newMailBanner.classList.remove('hidden');
+      renderIcons();
     }
     scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || refreshSeconds));
   } catch (error) {
@@ -253,7 +252,7 @@ function renderMessageItem(message) {
   return `<button class="public-message-item" type="button" data-message-id="${message.id}">
     <span class="public-message-row"><span class="public-sender"><span class="public-sender-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span><strong>${escapeHtml(message.sender || '未知发件人')}</strong></span><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span>
     <span class="public-message-copy"><span class="public-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="public-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span></span>
-    <span class="public-message-foot">${hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>已提取验证码</span>' : '<span>邮件</span>'}<i data-lucide="chevron-right"></i></span>
+    <span class="public-message-foot"><span>${escapeHtml(formatFolders(message.folders))}</span>${hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>已提取验证码</span>' : ''}<i data-lucide="chevron-right"></i></span>
   </button>`;
 }
 
@@ -262,29 +261,6 @@ function bindMessageItems(messages) {
     const button = mailMessageList.querySelector(`[data-message-id="${message.id}"]`);
     if (button) button.addEventListener('click', () => openMailMessage(message, button));
   }
-}
-
-function renderCodeMessage(message) {
-  if (!message) {
-    mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="badge-check"></i></span><strong>暂无有效验证码</strong><span>收到新邮件后，页面会自动刷新。</span></div>';
-    renderIcons();
-    return;
-  }
-  mailDetail.innerHTML = `<header class="public-detail-head">
-    <button class="public-mobile-back" type="button" title="返回邮件列表" aria-label="返回邮件列表"><i data-lucide="arrow-left"></i></button>
-    <div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(message.subject || '验证码邮件')}</h1></div>
-    ${message.code ? '<button class="btn btn-secondary" type="button" data-copy-code-mode><i data-lucide="copy" class="icon"></i><span>复制验证码</span></button>' : ''}
-  </header>
-  <dl class="public-detail-meta">
-    <div><dt>发件人</dt><dd>${escapeHtml(message.sender || '未知发件人')}</dd></div>
-    <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(message.receivedAt, true))}</dd></div>
-    <div class="public-detail-code-cell"><dt>验证码</dt><dd><strong class="public-detail-code">${escapeHtml(message.code || message.codeMasked || '------')}</strong></dd></div>
-  </dl>
-  <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件摘要</span></div><div class="public-code-summary">${escapeHtml(message.bodyPreview || '当前安全模式只显示最新有效验证码。')}</div></section>`;
-  mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => mailDetail.classList.remove('mobile-visible'));
-  const copyButton = mailDetail.querySelector('[data-copy-code-mode]');
-  if (copyButton && message.code) copyButton.addEventListener('click', () => copyCode(message.code, '验证码已复制'));
-  renderIcons();
 }
 
 function updateMailListState(loadedCount) {
@@ -318,15 +294,10 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     });
     if (requestId !== mailState.requestId) return false;
     const messages = Array.isArray(data.messages) ? data.messages : [];
-    mailState.mode = data.mode || 'text';
     updateMailbox(data);
-    const displayMessages = mailState.mode === 'code'
-      ? messages.map((message) => ({ ...message, bodyPreview: `验证码 ${message.code || message.codeMasked || '------'}` }))
-      : messages;
-    mailMessageList.insertAdjacentHTML('beforeend', displayMessages.map(renderMessageItem).join(''));
-    bindMessageItems(displayMessages);
-    mailState.cursor = mailState.mode === 'code' ? null : (data.nextCursor || null);
-    if (mailState.mode === 'code') renderCodeMessage(data.message || displayMessages[0] || null);
+    mailMessageList.insertAdjacentHTML('beforeend', messages.map(renderMessageItem).join(''));
+    bindMessageItems(messages);
+    mailState.cursor = data.nextCursor || null;
     if (reset) {
       mailState.latestId = Number(messages[0]?.id || 0) || null;
       newMailBanner.classList.add('hidden');
@@ -360,11 +331,6 @@ newMailBanner.addEventListener('click', async () => {
 async function openMailMessage(message, button) {
   mailState.selectedId = Number(message.id);
   mailMessageList.querySelectorAll('.public-message-item').forEach((item) => item.classList.toggle('active', item === button));
-  if (mailState.mode === 'code') {
-    mailDetail.classList.add('mobile-visible');
-    renderCodeMessage(message);
-    return;
-  }
   mailDetail.classList.add('mobile-visible');
   mailDetail.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
   try {
@@ -378,6 +344,7 @@ async function openMailMessage(message, button) {
     </header>
     <dl class="public-detail-meta">
       <div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div>
+      <div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(detail.folders))}</dd></div>
       <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div>
       <div class="public-detail-code-cell"><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div>
     </dl>
@@ -457,7 +424,7 @@ function renderBatchInboxMessage(message, mailboxIndex) {
   return `<button class="batch-inbox-message" type="button" data-batch-inbox-message="${message.id}" data-mailbox-index="${mailboxIndex}">
     <span class="batch-inbox-message-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span>
     <span class="batch-inbox-message-copy"><span class="batch-inbox-message-line"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span><span class="batch-inbox-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="batch-inbox-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span></span>
-    <span class="batch-inbox-message-tail">${message.hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>验证码</span>' : ''}<i data-lucide="chevron-right"></i></span>
+    <span class="batch-inbox-message-tail"><span>${escapeHtml(formatFolders(message.folders))}</span>${message.hasCode ? '<span class="public-code-badge"><i data-lucide="badge-check"></i>验证码</span>' : ''}<i data-lucide="chevron-right"></i></span>
   </button>`;
 }
 
@@ -570,7 +537,7 @@ async function openBatchInboxMessage(index, message) {
   try {
     const data = await request('/api/query/message', { token, messageId: Number(message.id) });
     const detail = data.message;
-    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div><div><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>纯文本正文</span></div><pre class="public-detail-body"></pre></section>`;
+    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(detail.folders))}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div><div><dt>验证码</dt><dd>${detail.code ? `<strong class="public-detail-code">${escapeHtml(detail.code)}</strong>` : '未提取到验证码'}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>纯文本正文</span></div><pre class="public-detail-body"></pre></section>`;
     batchInboxDetailContent.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的纯文本正文。';
     batchInboxDetailContent.querySelector('[data-close-batch-detail]').addEventListener('click', () => batchInboxDetail.close());
     renderIcons();
@@ -729,7 +696,6 @@ changeKeyButton.addEventListener('click', () => {
   mailState.cursor = null;
   mailState.keyword = '';
   mailState.filter = 'all';
-  mailState.mode = 'text';
   mailState.latestId = null;
   mailState.lastRefreshAt = null;
   mailState.loading = false;

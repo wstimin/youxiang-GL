@@ -13,6 +13,10 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value)) : '暂无';
 }
 
+function formatFolders(folders) {
+  return Array.isArray(folders) && folders.length ? folders.join(' / ') : 'INBOX';
+}
+
 function toastMessage(message) {
   toast.textContent = message;
   toast.classList.remove('hidden');
@@ -61,8 +65,6 @@ const auditActionLabels = Object.freeze({
   login_success: '登录成功',
   login_totp_failed: '登录动态验证码失败',
   login_totp_success: '登录动态验证码成功',
-  verification_mode_enabled: '已启用验证码方式',
-  verification_mode_disabled: '已关闭验证码方式',
   mail_sync_requested: '已请求邮箱同步',
   session_revoked: '已退出指定会话',
   other_sessions_revoked: '已退出其他会话',
@@ -118,8 +120,6 @@ function auditDetailLabel(detail) {
     'invalid input': '输入无效'
   };
   if (directLabels[value]) return directLabels[value];
-  const modeMatch = value.match(/^mode=(code|text)$/);
-  if (modeMatch) return modeMatch[1] === 'code' ? '验证码方式' : '邮件文本方式';
   const requestedMatch = value.match(/^requested=(\d+);invalid=(\d+)$/);
   if (requestedMatch) return `请求 ${requestedMatch[1]} 条，无效 ${requestedMatch[2]} 条`;
   const exportedMatch = value.match(/^exported=(\d+);skipped=(\d+)$/);
@@ -269,11 +269,11 @@ function render() {
   const messageCount = document.querySelector('#message-count');
   if (messageCount) messageCount.textContent = `${filteredMessages.length}/${data.recent.length} 条`;
 
-  const recentRows = data.recent.slice(0, 10).map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${formatDate(row.received_at)}</td></tr>`);
-  document.querySelector('#overview-recent').innerHTML = table(['邮箱', '发件人', '主题', '验证码', '收到时间'], recentRows);
+  const recentRows = data.recent.slice(0, 10).map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${formatDate(row.received_at)}</td></tr>`);
+  document.querySelector('#overview-recent').innerHTML = table(['邮箱', '文件夹', '发件人', '主题', '验证码', '收到时间'], recentRows);
   const legacyMessageTable = document.querySelector('#messages-table');
   if (legacyMessageTable) legacyMessageTable.innerHTML = table(['邮箱', '发件人', '主题', '验证码', '验证码识别度', '验证码有效期'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.code_masked || '未提取')}</td><td>${row.confidence}%</td><td>${formatDate(row.expires_at)}</td></tr>`));
-  document.querySelector('#unmatched-table').innerHTML = table(['发件人', '主题', '收件信息', '收到时间'], data.unmatched.map((row) => `<tr><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>`));
+  document.querySelector('#unmatched-table').innerHTML = table(['文件夹', '发件人', '主题', '收件信息', '收到时间'], data.unmatched.map((row) => `<tr><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(row.sender)}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>`));
   document.querySelector('#audit-table').innerHTML = table(['操作者', '操作', '对象/详情', '时间'], data.audit.slice(0, 12).map((row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>`));
 
   document.querySelector('#accounts-table').innerHTML = table(['邮箱', '服务商', 'IMAP', '状态', '最后同步', '操作'], data.accounts.map((row) => `<tr><td><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<br><small class="danger-text">${escapeHtml(mailErrorLabel(row.last_error))}</small>` : ''}</td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td>${escapeHtml(row.host)}:${row.port}</td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
@@ -283,12 +283,6 @@ function render() {
 
   document.querySelector('#totp-status').textContent = data.admin.totpEnabled ? 'TOTP 动态验证码已启用。' : 'TOTP 尚未启用，管理员登录目前只使用密码。';
   document.querySelector('#setup-totp').classList.toggle('hidden', data.admin.totpEnabled);
-  const verificationMode = document.querySelector('#verification-mode-enabled');
-  const verificationModeStatus = document.querySelector('#verification-mode-status');
-  verificationMode.checked = data.settings.verificationModeEnabled;
-  verificationModeStatus.textContent = verificationMode.checked
-    ? '单个查询返回最新有效验证码'
-    : '单个查询返回最近 7 天文本邮件';
   bindRowActions();
   lucide.createIcons();
   if (document.querySelector('#messages')?.classList.contains('active')) loadInbox().catch(() => {});
@@ -319,7 +313,7 @@ async function loadInboxMailboxes(reset = false) {
 function renderInboxMessages(messages, append = false) {
   const list = document.querySelector('#inbox-message-list');
   if (!list) return;
-  const markup = messages.map((message) => `<button class="inbox-message${String(message.id) === String(inbox.selectedId) ? ' active' : ''}" type="button" data-inbox-message="${message.id}"><div class="inbox-message-head"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time>${escapeHtml(formatDate(message.receivedAt))}</time></div><h3>${escapeHtml(message.subject || '无主题')}</h3><p>${escapeHtml(message.bodyPreview || '无正文摘要')}</p><div class="inbox-message-foot"><span>${escapeHtml(message.mailbox)}</span><span>${message.codeMasked ? `验证码 ${escapeHtml(message.codeMasked)}` : '未提取验证码'}</span></div></button>`).join('');
+  const markup = messages.map((message) => `<button class="inbox-message${String(message.id) === String(inbox.selectedId) ? ' active' : ''}" type="button" data-inbox-message="${message.id}"><div class="inbox-message-head"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time>${escapeHtml(formatDate(message.receivedAt))}</time></div><h3>${escapeHtml(message.subject || '无主题')}</h3><p>${escapeHtml(message.bodyPreview || '无正文摘要')}</p><div class="inbox-message-foot"><span>${escapeHtml(message.mailbox)} · ${escapeHtml(formatFolders(message.folders))}</span><span>${message.codeMasked ? `验证码 ${escapeHtml(message.codeMasked)}` : '未提取验证码'}</span></div></button>`).join('');
   if (!append) list.innerHTML = markup || empty('暂无邮件'); else list.insertAdjacentHTML('beforeend', markup);
   list.querySelectorAll('[data-inbox-message]').forEach((button) => button.addEventListener('click', () => openInboxMessage(button.dataset.inboxMessage)));
 }
@@ -358,7 +352,7 @@ async function openInboxMessage(id) {
   detail.innerHTML = '<div class="empty">正在解密邮件正文</div>';
   const data = await api(`/api/admin/messages/${id}`);
   const message = data.message;
-  detail.innerHTML = `<header class="inbox-detail-head"><div><span class="card-kicker">MAIL MESSAGE</span><h2>${escapeHtml(message.subject || '无主题')}</h2></div><span class="badge">${escapeHtml(message.mailbox)}</span></header><dl class="inbox-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(message.sender || '未知')}</dd></div><div><dt>收件人</dt><dd>${escapeHtml(message.recipients || '未知')}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatDate(message.receivedAt))}</dd></div><div><dt>验证码</dt><dd>${escapeHtml(message.code || message.codeMasked || '未提取')}</dd></div></dl><pre class="inbox-body">${escapeHtml(message.body || '这封邮件没有可显示的纯文本正文。')}</pre>`;
+  detail.innerHTML = `<header class="inbox-detail-head"><div><span class="card-kicker">MAIL MESSAGE</span><h2>${escapeHtml(message.subject || '无主题')}</h2></div><span class="badge">${escapeHtml(message.mailbox)}</span></header><dl class="inbox-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(message.sender || '未知')}</dd></div><div><dt>收件人</dt><dd>${escapeHtml(message.recipients || '未知')}</dd></div><div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(message.folders))}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatDate(message.receivedAt))}</dd></div><div><dt>验证码</dt><dd>${escapeHtml(message.code || message.codeMasked || '未提取')}</dd></div></dl><pre class="inbox-body">${escapeHtml(message.body || '这封邮件没有可显示的纯文本正文。')}</pre>`;
 }
 
 async function loadState() {
@@ -675,20 +669,6 @@ document.querySelector('#load-more-mailboxes')?.addEventListener('click', async 
 document.querySelector('#message-code-only')?.addEventListener('change', () => {
   inbox.cursor = '';
   loadInboxMessages().catch((error) => toastMessage(error.message));
-});
-document.querySelector('#verification-mode-enabled').addEventListener('change', async (event) => {
-  const enabled = event.target.checked;
-  event.target.disabled = true;
-  try {
-    await api('/api/admin/settings/verification-mode', { method: 'POST', body: JSON.stringify({ enabled }) });
-    await loadState();
-    toastMessage(enabled ? '单个查询已切换为验证码方式' : '单个查询已切换为文本方式');
-  } catch (error) {
-    event.target.checked = !enabled;
-    toastMessage(error.message);
-  } finally {
-    event.target.disabled = false;
-  }
 });
 ['alias-search', 'totp-search'].forEach((id) => {
   document.querySelector(`#${id}`).addEventListener('input', () => state.data && render());

@@ -76,6 +76,33 @@ UPDATE mail_accounts SET provider = CASE
   ELSE provider
 END;
 
+CREATE TABLE IF NOT EXISTS mail_folders (
+  id BIGSERIAL PRIMARY KEY,
+  mail_account_id BIGINT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  special_use TEXT NOT NULL DEFAULT '',
+  selectable BOOLEAN NOT NULL DEFAULT TRUE,
+  uid_validity TEXT,
+  last_uid BIGINT NOT NULL DEFAULT 0,
+  history_synced_at TIMESTAMPTZ,
+  last_synced_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (mail_account_id, path)
+);
+
+INSERT INTO mail_folders(
+  mail_account_id, path, special_use, selectable, uid_validity,
+  last_uid, history_synced_at, last_synced_at
+)
+SELECT id, 'INBOX', '\\Inbox', TRUE, uid_validity,
+       last_uid, body_sync_completed_at, last_synced_at
+FROM mail_accounts
+ON CONFLICT (mail_account_id, path) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS mail_folders_account_idx
+  ON mail_folders(mail_account_id, selectable, id);
+
 CREATE TABLE IF NOT EXISTS aliases (
   id BIGSERIAL PRIMARY KEY,
   mail_account_id BIGINT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
@@ -124,6 +151,7 @@ CREATE TABLE IF NOT EXISTS verification_messages (
   code_masked TEXT,
   confidence SMALLINT NOT NULL DEFAULT 0,
   body_text_encrypted TEXT,
+  mailbox_paths TEXT[] NOT NULL DEFAULT ARRAY['INBOX']::TEXT[],
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL,
   mail_expires_at TIMESTAMPTZ NOT NULL,
@@ -133,6 +161,7 @@ CREATE TABLE IF NOT EXISTS verification_messages (
 
 ALTER TABLE verification_messages ADD COLUMN IF NOT EXISTS body_text_encrypted TEXT;
 ALTER TABLE verification_messages ADD COLUMN IF NOT EXISTS mail_expires_at TIMESTAMPTZ;
+ALTER TABLE verification_messages ADD COLUMN IF NOT EXISTS mailbox_paths TEXT[] NOT NULL DEFAULT ARRAY['INBOX']::TEXT[];
 UPDATE verification_messages
 SET mail_expires_at = COALESCE(received_at, created_at, NOW()) + INTERVAL '7 days'
 WHERE mail_expires_at IS NULL;
@@ -188,6 +217,7 @@ CREATE TABLE IF NOT EXISTS mail_messages (
   uid BIGINT NOT NULL,
   uid_validity TEXT NOT NULL,
   message_id TEXT NOT NULL DEFAULT '',
+  mailbox_paths TEXT[] NOT NULL DEFAULT ARRAY['INBOX']::TEXT[],
   sender TEXT NOT NULL DEFAULT '',
   recipients_encrypted TEXT,
   subject TEXT NOT NULL DEFAULT '',
@@ -199,14 +229,54 @@ CREATE TABLE IF NOT EXISTS mail_messages (
   code_expires_at TIMESTAMPTZ,
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   mail_expires_at TIMESTAMPTZ NOT NULL,
-  synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (mail_account_id, uid_validity, uid)
+  synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS code_expires_at TIMESTAMPTZ;
+ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS mailbox_paths TEXT[] NOT NULL DEFAULT ARRAY['INBOX']::TEXT[];
+ALTER TABLE mail_messages DROP CONSTRAINT IF EXISTS mail_messages_mail_account_id_uid_validity_uid_key;
+DROP INDEX IF EXISTS mail_messages_account_message_idx;
+WITH duplicate_messages AS (
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY mail_account_id, message_id
+           ORDER BY id
+         ) AS row_number
+  FROM mail_messages
+  WHERE message_id <> ''
+)
+DELETE FROM mail_messages mm
+USING duplicate_messages duplicate
+WHERE mm.id = duplicate.id AND duplicate.row_number > 1;
+CREATE UNIQUE INDEX IF NOT EXISTS mail_messages_account_message_nonempty_idx
+  ON mail_messages(mail_account_id, message_id)
+  WHERE message_id <> '';
 
 CREATE INDEX IF NOT EXISTS mail_messages_recent_idx ON mail_messages(received_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS mail_messages_alias_recent_idx ON mail_messages(alias_id, received_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS mail_message_locations (
+  id BIGSERIAL PRIMARY KEY,
+  mail_message_id BIGINT NOT NULL REFERENCES mail_messages(id) ON DELETE CASCADE,
+  mail_folder_id BIGINT NOT NULL REFERENCES mail_folders(id) ON DELETE CASCADE,
+  uid BIGINT NOT NULL,
+  uid_validity TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (mail_folder_id, uid_validity, uid)
+);
+
+ALTER TABLE mail_message_locations
+  DROP CONSTRAINT IF EXISTS mail_message_locations_mail_message_id_mail_folder_id_key;
+
+INSERT INTO mail_message_locations(mail_message_id, mail_folder_id, uid, uid_validity)
+SELECT mm.id, mf.id, mm.uid, mm.uid_validity
+FROM mail_messages mm
+JOIN mail_folders mf ON mf.mail_account_id = mm.mail_account_id AND mf.path = 'INBOX'
+ON CONFLICT (mail_folder_id, uid_validity, uid) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS mail_message_locations_message_idx
+  ON mail_message_locations(mail_message_id, mail_folder_id);
 
 CREATE TABLE IF NOT EXISTS unmatched_messages (
   id BIGSERIAL PRIMARY KEY,
@@ -214,11 +284,14 @@ CREATE TABLE IF NOT EXISTS unmatched_messages (
   message_key TEXT NOT NULL,
   sender TEXT NOT NULL DEFAULT '',
   subject TEXT NOT NULL DEFAULT '',
+  mailbox_paths TEXT[] NOT NULL DEFAULT ARRAY['INBOX']::TEXT[],
   recipient_headers TEXT NOT NULL DEFAULT '',
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (mail_account_id, message_key)
 );
+
+ALTER TABLE unmatched_messages ADD COLUMN IF NOT EXISTS mailbox_paths TEXT[] NOT NULL DEFAULT ARRAY['INBOX']::TEXT[];
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGSERIAL PRIMARY KEY,
@@ -231,16 +304,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs(created_at DESC);
-
-CREATE TABLE IF NOT EXISTS app_settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-INSERT INTO app_settings(key, value)
-VALUES ('verification_mode_enabled', 'true')
-ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS runtime_status (
   service TEXT PRIMARY KEY,

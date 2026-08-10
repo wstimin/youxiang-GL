@@ -51,7 +51,15 @@ test('aggregated inbox pages messages and loads plain text details separately', 
     server.indexOf("app.delete('/api/admin/sessions/:id'")
   );
 
-  assert.match(schema, /UNIQUE \(mail_account_id, uid_validity, uid\)/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS mail_folders/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS mail_message_locations/);
+  assert.match(schema, /UNIQUE \(mail_folder_id, uid_validity, uid\)/);
+  assert.doesNotMatch(schema, /UNIQUE \(mail_message_id, mail_folder_id\)/);
+  assert.match(worker, /client\.list\(\)/);
+  assert.match(worker, /!hasMailboxFlag\(folder, '\\\\Noselect'\)/);
+  assert.match(worker, /history_synced_at/);
+  assert.match(worker, /ON CONFLICT \(mail_account_id, message_id\) WHERE message_id <> ''/);
+  assert.match(worker, /mail_message_locations/);
   assert.match(listRoute, /req\.query\.cursor/);
   assert.match(listRoute, /Math\.min\(50/);
   assert.doesNotMatch(listRoute, /body_text_encrypted/);
@@ -130,14 +138,14 @@ test('batch inbox searches seven-day mail and keeps results grouped by masked ma
   assert.match(batchInboxRoute, /sender ILIKE[\s\S]*subject ILIKE[\s\S]*body_preview ILIKE/);
   assert.match(batchInboxRoute, /ROW_NUMBER\(\) OVER \(PARTITION BY alias_id/);
   assert.match(batchInboxRoute, /row_number <= \$3::int \+ 1/);
-  assert.match(batchInboxRoute, /verificationModeEnabled\(\)/);
+  assert.doesNotMatch(batchInboxRoute, /verificationModeEnabled\(\)|status\(403\)/);
   assert.match(batchInboxRoute, /mailbox = publicMailboxResponse\(alias, stats, runtime\)/);
   assert.match(batchInboxRoute, /mailbox\.matchedMessages = stats\.matched_count/);
   assert.match(batchInboxRoute, /nextCursor:/);
   assert.doesNotMatch(batchInboxRoute, /body_text_encrypted|recipients_encrypted|token_encrypted/);
   assert.match(html, /data-public-view="batch-inbox"/);
   assert.match(html, /id="batch-inbox-search"/);
-  assert.match(html, /管理员需关闭“验证码方式”后使用/);
+  assert.doesNotMatch(html, /验证码方式/);
   assert.match(html, /id="batch-inbox-groups"/);
   assert.match(publicQuery, /request\('\/api\/query\/batch-inbox'/);
   assert.match(publicQuery, /data-batch-inbox-toggle/);

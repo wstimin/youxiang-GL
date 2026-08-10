@@ -138,6 +138,7 @@ function adminMailMessageResponse(row) {
   const codeActive = row.code_encrypted && row.code_expires_at && new Date(row.code_expires_at) > new Date();
   return {
     id: row.id,
+    folders: Array.isArray(row.mailbox_paths) ? row.mailbox_paths : [],
     mailbox: row.address || '未归类邮箱',
     sender: row.sender,
     recipients: decrypt(row.recipients_encrypted) || '',
@@ -221,17 +222,11 @@ function publicMailboxResponse(alias, stats, runtime) {
   };
 }
 
-async function verificationModeEnabled() {
-  const result = await pool.query(
-    `SELECT value FROM app_settings WHERE key = 'verification_mode_enabled'`
-  );
-  return result.rows[0]?.value !== 'false';
-}
-
 function mailMessageResponse(message, includeBody = false) {
   const codeActive = message.code_encrypted && new Date(message.expires_at).getTime() > Date.now();
   return {
     id: message.id,
+    folders: Array.isArray(message.mailbox_paths) ? message.mailbox_paths : [],
     sender: message.sender,
     subject: message.subject,
     body: includeBody ? decrypt(message.body_text_encrypted) : null,
@@ -249,6 +244,7 @@ function publicMailMessageResponse(message) {
   const codeActive = message.code_encrypted && message.code_expires_at && new Date(message.code_expires_at).getTime() > Date.now();
   return {
     id: message.id,
+    folders: Array.isArray(message.mailbox_paths) ? message.mailbox_paths : [],
     sender: message.sender,
     subject: message.subject,
     bodyPreview: message.body_preview || '',
@@ -457,58 +453,14 @@ app.post('/api/query', async (req, res, next) => {
     const codeOnly = String(req.body.status || '') === 'code';
     const cursor = parsePublicCursor(req.body.cursor);
     if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
-    const codeMode = await verificationModeEnabled();
-    if (codeMode) {
-      const [latestResult, statsResult, runtimeResult] = await Promise.all([
-        pool.query(
-          `SELECT id, sender, subject, body_preview, code_encrypted, code_masked,
-                  confidence, code_expires_at, received_at
-           FROM mail_messages
-           WHERE alias_id = $1 AND mail_expires_at > NOW()
-             AND code_encrypted IS NOT NULL AND code_expires_at > NOW()
-           ORDER BY received_at DESC, id DESC LIMIT 1`,
-          [alias.id]
-        ),
-        pool.query(
-          `SELECT COUNT(*)::int AS total_count,
-                  COUNT(*) FILTER (
-                    WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
-                  )::int AS code_count,
-                  MAX(received_at) AS latest_received_at
-           FROM mail_messages
-           WHERE alias_id = $1 AND mail_expires_at > NOW()`,
-          [alias.id]
-        ),
-        pool.query(
-          `SELECT status,
-                  heartbeat_at > NOW() - ($1::text || ' seconds')::interval AS fresh
-           FROM runtime_status
-           WHERE service = 'worker'`,
-          [String(workerFreshSeconds)]
-        )
-      ]);
-      const row = latestResult.rows[0];
-      const message = row ? publicMailMessageResponse(row) : null;
-      if (message) {
-        message.code = decrypt(row.code_encrypted);
-        message.codeExpiresAt = row.code_expires_at;
-      }
-      await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=code' });
-      return res.json({
-        mode: 'code',
-        mailbox: publicMailboxResponse(alias, statsResult.rows[0], runtimeResult.rows[0]),
-        message,
-        messages: message ? [message] : [],
-        nextCursor: null
-      });
-    }
     const [messageResult, statsResult, runtimeResult] = await Promise.all([pool.query(
-      `SELECT id, sender, subject, body_preview, code_encrypted, code_masked,
+      `SELECT id, sender, subject, body_preview, mailbox_paths, code_encrypted, code_masked,
               confidence, code_expires_at, received_at
        FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()
          AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
-              OR body_preview ILIKE '%' || $2 || '%')
+              OR body_preview ILIKE '%' || $2 || '%'
+              OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%')
          AND ($3::boolean = FALSE OR (code_encrypted IS NOT NULL AND code_expires_at > NOW()))
          AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
        ORDER BY received_at DESC, id DESC LIMIT $6`,
@@ -529,11 +481,10 @@ app.post('/api/query', async (req, res, next) => {
        WHERE service = 'worker'`,
       [String(workerFreshSeconds)]
     )]);
-    await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip, detail: 'mode=text' });
+    await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip });
     const messages = messageResult.rows.slice(0, limit).map(publicMailMessageResponse);
     const hasMore = messageResult.rows.length > limit;
     return res.json({
-      mode: 'text',
       mailbox: publicMailboxResponse(alias, statsResult.rows[0], runtimeResult.rows[0]),
       messages,
       nextCursor: hasMore ? makePublicCursor(messageResult.rows[limit - 1]) : null
@@ -557,12 +508,8 @@ app.post('/api/query/message', async (req, res, next) => {
     }
     const alias = await findPublicAlias(token);
     if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
-    if (await verificationModeEnabled()) {
-      await audit({ actor: `alias:${alias.id}`, action: 'query_message_blocked', target: String(messageId), ip, detail: 'verification mode' });
-      return res.status(403).json({ error: '当前查询模式仅允许查看最新有效验证码' });
-    }
     const result = await pool.query(
-      `SELECT id, sender, subject, body_text_encrypted,
+      `SELECT id, sender, subject, body_text_encrypted, mailbox_paths,
               body_preview, code_encrypted, code_masked, confidence,
               code_expires_at, received_at
        FROM mail_messages
@@ -604,12 +551,12 @@ app.post('/api/query/batch', async (req, res, next) => {
     const tokenDigests = tokens.map((token) => token.length >= 20 && token.length <= 200 ? digest(token) : null);
     const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
     const matched = searchableDigests.length ? await pool.query(
-      `SELECT a.id, a.token_digest,
-         v.id AS message_id, v.sender, v.subject, v.code_encrypted, v.received_at, v.expires_at,
+       `SELECT a.id, a.token_digest,
+         v.id AS message_id, v.sender, v.subject, v.mailbox_paths, v.code_encrypted, v.received_at, v.expires_at,
          v.mail_expires_at
        FROM aliases a
        LEFT JOIN LATERAL (
-         SELECT id, sender, subject, code_encrypted, received_at, expires_at, mail_expires_at
+         SELECT id, sender, subject, mailbox_paths, code_encrypted, received_at, expires_at, mail_expires_at
          FROM verification_messages
          WHERE alias_id = a.id AND mail_expires_at > NOW() AND expires_at > NOW() AND code_encrypted IS NOT NULL
          ORDER BY received_at DESC LIMIT 1
@@ -627,6 +574,7 @@ app.post('/api/query/batch', async (req, res, next) => {
         code: decrypt(alias.code_encrypted),
         sender: alias.sender,
         subject: alias.subject,
+        folders: Array.isArray(alias.mailbox_paths) ? alias.mailbox_paths : [],
         receivedAt: alias.received_at,
         expiresAt: alias.expires_at
       } : null;
@@ -667,10 +615,6 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
     if (req.body.tokens.length > 50) {
       return res.status(400).json({ error: '每次最多查询50个密钥' });
     }
-    if (await verificationModeEnabled()) {
-      return res.status(403).json({ error: '当前查询模式仅允许查看最新有效验证码' });
-    }
-
     const tokens = req.body.tokens.map((value) => String(value || '').trim());
     const keyword = String(req.body.keyword || '').trim().slice(0, 120);
     const requestedLimit = Number.parseInt(req.body.limitPerMailbox, 10);
@@ -709,16 +653,17 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
     if (aliasIds.length) {
       const [messagesResult, statsResult] = await Promise.all([
         pool.query(
-          `SELECT id, alias_id, sender, subject, body_preview, code_encrypted,
+          `SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, code_encrypted,
                   code_masked, confidence, code_expires_at, received_at
            FROM (
-             SELECT id, alias_id, sender, subject, body_preview, code_encrypted,
+             SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, code_encrypted,
                     code_masked, confidence, code_expires_at, received_at,
                     ROW_NUMBER() OVER (PARTITION BY alias_id ORDER BY received_at DESC, id DESC) AS row_number
              FROM mail_messages
              WHERE alias_id = ANY($1::bigint[]) AND mail_expires_at > NOW()
                AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
-                    OR body_preview ILIKE '%' || $2 || '%')
+                    OR body_preview ILIKE '%' || $2 || '%'
+                    OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%')
                AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
            ) recent
            WHERE row_number <= $3::int + 1
@@ -731,6 +676,7 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
                   COUNT(*) FILTER (
                     WHERE $2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
                           OR body_preview ILIKE '%' || $2 || '%'
+                          OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%'
                   )::int AS matched_count,
                   COUNT(*) FILTER (
                     WHERE code_encrypted IS NOT NULL AND code_expires_at > NOW()
@@ -875,7 +821,7 @@ app.post('/api/admin/login/totp', adminNetwork, async (req, res, next) => {
 app.get('/api/admin/state', ...adminApi(async (req, res) => {
   noStore(res);
   const currentSessionHash = digest(req.sessionToken);
-  const [accounts, aliases, totpEntries, recent, unmatched, auditResult, metrics, runtime, sessions, codeMode] = await Promise.all([
+  const [accounts, aliases, totpEntries, recent, unmatched, auditResult, metrics, runtime, sessions] = await Promise.all([
     pool.query(`SELECT id, email, provider, host, port, secure, enabled, status, last_error, last_synced_at, sync_requested_at, created_at FROM mail_accounts ORDER BY id`),
     pool.query(`SELECT a.id, a.mail_account_id, a.address, a.label, a.enabled, a.token_hint, a.token_expires_at, a.created_at,
       (a.token_encrypted IS NOT NULL) AS token_recoverable,
@@ -883,9 +829,9 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
       FROM aliases a ORDER BY a.id DESC`),
     pool.query(`SELECT id, secret_hint, issuer, account_name, legacy_alias_address, last_used_at, created_at
       FROM totp_entries ORDER BY id DESC`),
-    pool.query(`SELECT v.id, v.alias_id, a.address, v.sender, v.subject, v.code_masked, v.confidence, v.received_at, v.expires_at
+    pool.query(`SELECT v.id, v.alias_id, a.address, v.sender, v.subject, v.mailbox_paths, v.code_masked, v.confidence, v.received_at, v.expires_at
       FROM verification_messages v LEFT JOIN aliases a ON a.id = v.alias_id ORDER BY v.received_at DESC LIMIT 50`),
-    pool.query(`SELECT id, sender, subject, recipient_headers, received_at FROM unmatched_messages ORDER BY received_at DESC LIMIT 30`),
+    pool.query(`SELECT id, sender, subject, mailbox_paths, recipient_headers, received_at FROM unmatched_messages ORDER BY received_at DESC LIMIT 30`),
     pool.query(`SELECT actor, action, target, detail, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 100`),
     pool.query(`SELECT
       COUNT(*) FILTER (WHERE action = 'query_success' AND created_at >= CURRENT_DATE)::int AS queries_today,
@@ -900,13 +846,11 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
       [String(workerFreshSeconds)]
     ),
     pool.query(`SELECT session_id, user_agent, created_at, expires_at, (id_hash = $1) AS current
-      FROM sessions WHERE user_id = $2 AND expires_at > NOW() ORDER BY created_at DESC`, [currentSessionHash, req.admin.id]),
-    verificationModeEnabled()
+      FROM sessions WHERE user_id = $2 AND expires_at > NOW() ORDER BY created_at DESC`, [currentSessionHash, req.admin.id])
   ]);
   res.json({
     csrfToken: req.admin.csrf_token,
     admin: { email: req.admin.email, totpEnabled: Boolean(req.admin.totp_secret_encrypted) },
-    settings: { verificationModeEnabled: codeMode },
     accounts: accounts.rows,
     aliases: aliases.rows,
     totpEntries: totpEntries.rows,
@@ -917,25 +861,6 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
     runtime: runtime.rows,
     sessions: sessions.rows
   });
-}));
-
-app.post('/api/admin/settings/verification-mode', ...adminApi(async (req, res) => {
-  if (typeof req.body.enabled !== 'boolean') {
-    return res.status(400).json({ error: '验证码方式开关参数无效' });
-  }
-  const enabled = req.body.enabled;
-  await pool.query(
-    `INSERT INTO app_settings(key, value, updated_at)
-     VALUES ('verification_mode_enabled', $1, NOW())
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-    [String(enabled)]
-  );
-  await audit({
-    actor: `user:${req.admin.id}`,
-    action: enabled ? 'verification_mode_enabled' : 'verification_mode_disabled',
-    ip: extractClientIp(req)
-  });
-  res.json({ ok: true, verificationModeEnabled: enabled });
 }));
 
 app.post('/api/admin/mail-account/:id/sync', ...adminApi(async (req, res) => {
@@ -1075,14 +1000,16 @@ app.get('/api/admin/messages', ...adminApi(async (req, res) => {
     }
   }
   const result = await pool.query(
-    `SELECT mm.id, mm.alias_id, a.address, mm.sender, mm.subject, mm.body_preview,
+    `SELECT mm.id, mm.alias_id, a.address, mm.sender, mm.subject, mm.body_preview, mm.mailbox_paths,
        mm.code_masked, mm.confidence, mm.code_expires_at, mm.received_at
      FROM mail_messages mm
      LEFT JOIN aliases a ON a.id = mm.alias_id
      WHERE mm.mail_expires_at > NOW()
        AND ($1::bigint IS NULL OR mm.mail_account_id = $1)
        AND ($2::bigint IS NULL OR mm.alias_id = $2)
-       AND ($3 = '' OR mm.sender ILIKE '%' || $3 || '%' OR mm.subject ILIKE '%' || $3 || '%' OR a.address ILIKE '%' || $3 || '%')
+       AND ($3 = '' OR mm.sender ILIKE '%' || $3 || '%' OR mm.subject ILIKE '%' || $3 || '%'
+            OR a.address ILIKE '%' || $3 || '%'
+            OR array_to_string(mm.mailbox_paths, ', ') ILIKE '%' || $3 || '%')
        AND ($4::boolean = FALSE OR mm.code_encrypted IS NOT NULL)
        AND ($5::timestamptz IS NULL OR (mm.received_at, mm.id) < ($5::timestamptz, $6::bigint))
      ORDER BY mm.received_at DESC, mm.id DESC LIMIT $7`,
@@ -1094,6 +1021,7 @@ app.get('/api/admin/messages', ...adminApi(async (req, res) => {
   res.json({
     messages: rows.map((row) => ({
       id: row.id,
+      folders: Array.isArray(row.mailbox_paths) ? row.mailbox_paths : [],
       mailbox: row.address || '未归类邮箱',
       sender: row.sender,
       subject: row.subject,
@@ -1111,7 +1039,7 @@ app.get('/api/admin/messages', ...adminApi(async (req, res) => {
 app.get('/api/admin/messages/:id', ...adminApi(async (req, res) => {
   noStore(res);
   const result = await pool.query(
-    `SELECT mm.id, a.address, mm.sender, mm.recipients_encrypted, mm.subject,
+    `SELECT mm.id, a.address, mm.sender, mm.recipients_encrypted, mm.subject, mm.mailbox_paths,
        mm.body_text_encrypted, mm.code_encrypted, mm.code_masked, mm.confidence,
        mm.code_expires_at, mm.received_at
      FROM mail_messages mm LEFT JOIN aliases a ON a.id = mm.alias_id

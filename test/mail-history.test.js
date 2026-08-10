@@ -41,9 +41,6 @@ test('cleanup separates code expiry from mail retention', () => {
 test('single-token query lists scoped mail and protects full body lookup', () => {
   const listRoute = server.slice(server.indexOf("app.post('/api/query'"), server.indexOf("app.post('/api/query/message'"));
   const bodyRoute = server.slice(server.indexOf("app.post('/api/query/message'"), server.indexOf("app.post('/api/query/batch'"));
-  assert.match(schema, /CREATE TABLE IF NOT EXISTS app_settings/);
-  assert.match(schema, /VALUES \('verification_mode_enabled', 'true'\)/);
-  assert.match(listRoute, /mode: 'text'/);
   assert.match(listRoute, /parsePublicCursor\(req\.body\.cursor\)/);
   assert.match(listRoute, /Math\.min\(50/);
   assert.match(listRoute, /FROM mail_messages/);
@@ -52,10 +49,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.match(listRoute, /LIMIT \$6/);
   assert.match(listRoute, /nextCursor:/);
   assert.match(listRoute, /publicMailMessageResponse/);
-  assert.match(listRoute, /const codeMode = await verificationModeEnabled\(\)/);
-  assert.match(listRoute, /mode: 'code'/);
   assert.match(listRoute, /code_expires_at > NOW\(\)/);
-  assert.match(listRoute, /message\.code = decrypt\(row\.code_encrypted\)/);
   assert.match(listRoute, /publicMailboxResponse/);
   assert.match(listRoute, /body_preview ILIKE/);
   assert.match(listRoute, /COUNT\(\*\)::int AS total_count/);
@@ -66,11 +60,10 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.match(bodyRoute, /WHERE id = \$1 AND alias_id = \$2 AND mail_expires_at > NOW\(\)/);
   assert.match(bodyRoute, /body_text_encrypted/);
   assert.match(bodyRoute, /message\.body = decrypt\(row\.body_text_encrypted\)/);
-  assert.match(bodyRoute, /query_message_blocked/);
-  assert.match(bodyRoute, /status\(403\)/);
+  assert.doesNotMatch(bodyRoute, /query_message_blocked|status\(403\)|verificationModeEnabled/);
   assert.doesNotMatch(bodyRoute, /token_encrypted/);
   const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/batch-inbox'"));
-  assert.match(batchRoute, /SELECT id, sender, subject, code_encrypted, received_at, expires_at, mail_expires_at/);
+  assert.match(batchRoute, /SELECT id, sender, subject, mailbox_paths, code_encrypted, received_at, expires_at, mail_expires_at/);
 });
 
 test('public mail UI renders plain text bodies and seven-day history', () => {
@@ -85,8 +78,7 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /newMailBanner/);
   assert.match(script, /mailboxAddress/);
   assert.match(script, /scheduleMailRefresh/);
-  assert.match(script, /data\.mode === 'code'/);
-  assert.match(script, /function renderCodeMessage/);
+  assert.doesNotMatch(script, /data\.mode === 'code'|mailState\.mode|function renderCodeMessage/);
   assert.doesNotMatch(script, /detail\.body[^\n]*innerHTML/);
   assert.match(readme, /邮件默认保存 7 天/);
   assert.match(readme, /不保存附件/);

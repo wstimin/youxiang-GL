@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const { pool, initDatabase, decrypt, encrypt, cleanExpired, updateRuntimeStatus } = require('./lib');
@@ -81,7 +82,15 @@ async function runScheduled(items, handler) {
   }
 }
 
-async function processMessage(account, message, aliases, uidValidity) {
+function mergeMailboxPaths(tableName) {
+  return `ARRAY(
+    SELECT DISTINCT paths.mailbox_path
+    FROM unnest(${tableName}.mailbox_paths || EXCLUDED.mailbox_paths) AS paths(mailbox_path)
+    ORDER BY paths.mailbox_path
+  )`;
+}
+
+async function processMessage(account, folder, message, aliases, uidValidity) {
   if (!message.source) return;
   const parsed = await simpleParser(message.source, {
     skipHtmlToText: false,
@@ -90,7 +99,7 @@ async function processMessage(account, message, aliases, uidValidity) {
   });
   const headers = headerText(message.source);
   const alias = findAlias(headers, aliases);
-  const messageKey = String(parsed.messageId || `uid:${message.uid}`);
+  const messageKey = String(parsed.messageId || `source:${crypto.createHash('sha256').update(message.source).digest('hex')}`);
   const receivedAt = parsed.date instanceof Date ? parsed.date : new Date();
   const sender = senderText(parsed).slice(0, 500);
   const recipients = recipientText(parsed).slice(0, 2000);
@@ -100,36 +109,46 @@ async function processMessage(account, message, aliases, uidValidity) {
   const expiresAt = new Date(receivedAt.getTime() + codeTtlMinutes * 60 * 1000);
   const mailExpiresAt = new Date(receivedAt.getTime() + mailRetentionDays * 24 * 60 * 60 * 1000);
 
-  await pool.query(
+  const storedMessage = await pool.query(
     `INSERT INTO mail_messages(
-       mail_account_id, alias_id, uid, uid_validity, message_id, sender,
+       mail_account_id, alias_id, uid, uid_validity, message_id, mailbox_paths, sender,
        recipients_encrypted, subject, body_preview, body_text_encrypted,
        code_encrypted, code_masked, confidence, code_expires_at, received_at, mail_expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-     ON CONFLICT (mail_account_id, uid_validity, uid) DO UPDATE SET
-       alias_id = EXCLUDED.alias_id, message_id = EXCLUDED.message_id,
+     ) VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::TEXT[], $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+     ON CONFLICT (mail_account_id, message_id) WHERE message_id <> '' DO UPDATE SET
+       alias_id = COALESCE(EXCLUDED.alias_id, mail_messages.alias_id),
+       mailbox_paths = ${mergeMailboxPaths('mail_messages')},
        sender = EXCLUDED.sender, recipients_encrypted = EXCLUDED.recipients_encrypted,
        subject = EXCLUDED.subject, body_preview = EXCLUDED.body_preview,
        body_text_encrypted = EXCLUDED.body_text_encrypted,
        code_encrypted = EXCLUDED.code_encrypted, code_masked = EXCLUDED.code_masked,
        confidence = EXCLUDED.confidence, code_expires_at = EXCLUDED.code_expires_at,
        received_at = EXCLUDED.received_at,
-       mail_expires_at = EXCLUDED.mail_expires_at, synced_at = NOW()`,
+       mail_expires_at = EXCLUDED.mail_expires_at, synced_at = NOW()
+     RETURNING id`,
     [
       account.id, alias?.id || null, Number(message.uid), uidValidity, messageKey,
-      sender, recipients ? encrypt(recipients) : null, subject, bodyText.slice(0, 320),
+      folder.path, sender, recipients ? encrypt(recipients) : null, subject, bodyText.slice(0, 320),
       bodyText ? encrypt(bodyText) : null, extracted ? encrypt(extracted.code) : null,
       extracted ? `${'*'.repeat(Math.max(0, extracted.code.length - 2))}${extracted.code.slice(-2)}` : null,
       extracted?.confidence || 0, extracted ? expiresAt : null, receivedAt, mailExpiresAt
     ]
   );
+  await pool.query(
+    `INSERT INTO mail_message_locations(mail_message_id, mail_folder_id, uid, uid_validity)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (mail_folder_id, uid_validity, uid) DO UPDATE SET
+       mail_message_id = EXCLUDED.mail_message_id, updated_at = NOW()`,
+    [storedMessage.rows[0].id, folder.id, Number(message.uid), uidValidity]
+  );
 
   if (!alias) {
     await pool.query(
-      `INSERT INTO unmatched_messages(mail_account_id, message_key, sender, subject, recipient_headers, received_at)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (mail_account_id, message_key) DO NOTHING`,
-      [account.id, messageKey, sender, subject, headers.slice(0, 10000), receivedAt]
+      `INSERT INTO unmatched_messages(mail_account_id, message_key, sender, subject, mailbox_paths, recipient_headers, received_at)
+       VALUES ($1, $2, $3, $4, ARRAY[$5]::TEXT[], $6, $7)
+       ON CONFLICT (mail_account_id, message_key) DO UPDATE SET
+         mailbox_paths = ${mergeMailboxPaths('unmatched_messages')}`,
+      [account.id, messageKey, sender, subject, folder.path, headers.slice(0, 10000), receivedAt]
     );
     return;
   }
@@ -137,22 +156,101 @@ async function processMessage(account, message, aliases, uidValidity) {
   await pool.query(
     `INSERT INTO verification_messages(
        mail_account_id, alias_id, message_key, sender, subject, code_encrypted,
-       code_masked, confidence, body_text_encrypted, received_at, expires_at, mail_expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       code_masked, confidence, body_text_encrypted, mailbox_paths, received_at, expires_at, mail_expires_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ARRAY[$10]::TEXT[], $11, $12, $13)
      ON CONFLICT (mail_account_id, message_key) DO UPDATE SET
        alias_id = EXCLUDED.alias_id, sender = EXCLUDED.sender, subject = EXCLUDED.subject,
        code_encrypted = EXCLUDED.code_encrypted, code_masked = EXCLUDED.code_masked,
        confidence = EXCLUDED.confidence, body_text_encrypted = EXCLUDED.body_text_encrypted,
+       mailbox_paths = ${mergeMailboxPaths('verification_messages')},
        received_at = EXCLUDED.received_at, expires_at = EXCLUDED.expires_at,
        mail_expires_at = EXCLUDED.mail_expires_at`,
     [
       account.id, alias.id, messageKey, sender, subject,
       extracted ? encrypt(extracted.code) : null,
       extracted ? `${'*'.repeat(Math.max(0, extracted.code.length - 2))}${extracted.code.slice(-2)}` : null,
-      extracted?.confidence || 0, bodyText ? encrypt(bodyText) : null,
+      extracted?.confidence || 0, bodyText ? encrypt(bodyText) : null, folder.path,
       receivedAt, expiresAt, mailExpiresAt
     ]
   );
+}
+
+function hasMailboxFlag(folder, flag) {
+  if (folder.flags instanceof Set) return folder.flags.has(flag);
+  return Array.isArray(folder.flags) && folder.flags.includes(flag);
+}
+
+function selectableFolders(list) {
+  return list.filter((folder) => folder.path
+    && !hasMailboxFlag(folder, '\\Noselect')
+    && !hasMailboxFlag(folder, '\\NonExistent'))
+    .sort((left, right) => {
+      if (left.path.toUpperCase() === 'INBOX') return -1;
+      if (right.path.toUpperCase() === 'INBOX') return 1;
+      return left.path.localeCompare(right.path);
+    });
+}
+
+async function syncFolder(client, account, listedFolder, aliases) {
+  const folderResult = await pool.query(
+    `INSERT INTO mail_folders(mail_account_id, path, special_use, selectable, updated_at)
+     VALUES ($1, $2, $3, TRUE, NOW())
+     ON CONFLICT (mail_account_id, path) DO UPDATE SET
+       special_use = EXCLUDED.special_use, selectable = TRUE, updated_at = NOW()
+     RETURNING *`,
+    [account.id, listedFolder.path, listedFolder.specialUse || '']
+  );
+  const folder = folderResult.rows[0];
+  const lock = await client.getMailboxLock(folder.path);
+  try {
+    const uidValidity = String(client.mailbox.uidValidity || '');
+    if (folder.uid_validity && folder.uid_validity !== uidValidity) {
+      folder.last_uid = 0;
+      folder.history_synced_at = null;
+      await pool.query(
+        `UPDATE mail_folders SET last_uid = 0, uid_validity = $1,
+         history_synced_at = NULL, updated_at = NOW() WHERE id = $2`,
+        [uidValidity, folder.id]
+      );
+    } else if (!folder.uid_validity) {
+      await pool.query('UPDATE mail_folders SET uid_validity = $1, updated_at = NOW() WHERE id = $2', [uidValidity, folder.id]);
+    }
+
+    const uidNext = Number(client.mailbox.uidNext || 1);
+    const firstUid = folder.last_uid > 0 ? Number(folder.last_uid) + 1 : uidNext;
+    let highestUid = Number(folder.last_uid || 0);
+    if (firstUid < uidNext) {
+      for await (const message of client.fetch(`${firstUid}:*`, {
+        uid: true,
+        source: { start: 0, maxLength: maxMessageBytes }
+      }, { uid: true })) {
+        await processMessage(account, folder, message, aliases, uidValidity);
+        highestUid = Math.max(highestUid, Number(message.uid || 0));
+      }
+    }
+    if (!folder.history_synced_at) {
+      const since = new Date(Date.now() - mailRetentionDays * 24 * 60 * 60 * 1000);
+      const recentUids = await client.search({ since }, { uid: true });
+      if (recentUids.length) {
+        for await (const message of client.fetch(recentUids, {
+          uid: true,
+          source: { start: 0, maxLength: maxMessageBytes }
+        }, { uid: true })) {
+          await processMessage(account, folder, message, aliases, uidValidity);
+          highestUid = Math.max(highestUid, Number(message.uid || 0));
+        }
+      }
+    }
+    highestUid = Math.max(highestUid, uidNext - 1);
+    await pool.query(
+      `UPDATE mail_folders SET last_uid = $1, uid_validity = $2,
+       history_synced_at = COALESCE(history_synced_at, NOW()),
+       last_synced_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [highestUid, uidValidity, folder.id]
+    );
+  } finally {
+    lock.release();
+  }
 }
 
 async function syncAccount(account) {
@@ -173,55 +271,21 @@ async function syncAccount(account) {
   );
   try {
     await client.connect();
-    const lock = await client.getMailboxLock('INBOX');
-    try {
-      const uidValidity = String(client.mailbox.uidValidity || '');
-      if (account.uid_validity && account.uid_validity !== uidValidity) {
-        account.last_uid = 0;
-        await pool.query('UPDATE mail_accounts SET last_uid = 0, uid_validity = $1 WHERE id = $2', [uidValidity, account.id]);
-      } else if (!account.uid_validity) {
-        await pool.query('UPDATE mail_accounts SET uid_validity = $1 WHERE id = $2', [uidValidity, account.id]);
-      }
-      await pool.query("UPDATE mail_accounts SET sync_status = 'syncing', status = 'syncing' WHERE id = $1", [account.id]);
-      const aliasResult = await pool.query(
-        'SELECT id, address FROM aliases WHERE mail_account_id = $1 AND enabled = TRUE',
-        [account.id]
-      );
-      const uidNext = Number(client.mailbox.uidNext || 1);
-      const firstUid = account.last_uid > 0 ? Number(account.last_uid) + 1 : uidNext;
-      let highestUid = Number(account.last_uid || 0);
-      if (firstUid < uidNext) {
-        for await (const message of client.fetch(`${firstUid}:*`, {
-          uid: true,
-          source: { start: 0, maxLength: maxMessageBytes }
-        }, { uid: true })) {
-          await processMessage(account, message, aliasResult.rows, uidValidity);
-          highestUid = Math.max(highestUid, Number(message.uid || 0));
-        }
-      }
-      if (!account.body_sync_completed_at) {
-        const since = new Date(Date.now() - mailRetentionDays * 24 * 60 * 60 * 1000);
-        const recentUids = await client.search({ since }, { uid: true });
-        if (recentUids.length) {
-          for await (const message of client.fetch(recentUids, {
-            uid: true,
-            source: { start: 0, maxLength: maxMessageBytes }
-          }, { uid: true })) {
-            await processMessage(account, message, aliasResult.rows, uidValidity);
-            highestUid = Math.max(highestUid, Number(message.uid || 0));
-          }
-        }
-      }
-      highestUid = Math.max(highestUid, uidNext - 1);
-      await pool.query(
-        `UPDATE mail_accounts SET last_uid = $1,
-         body_sync_completed_at = COALESCE(body_sync_completed_at, NOW()),
-         first_sync_completed = TRUE WHERE id = $2`,
-        [highestUid, account.id]
-      );
-    } finally {
-      lock.release();
+    const folders = selectableFolders(await client.list());
+    await pool.query('UPDATE mail_folders SET selectable = FALSE, updated_at = NOW() WHERE mail_account_id = $1', [account.id]);
+    await pool.query("UPDATE mail_accounts SET sync_status = 'syncing', status = 'syncing' WHERE id = $1", [account.id]);
+    const aliasResult = await pool.query(
+      'SELECT id, address FROM aliases WHERE mail_account_id = $1 AND enabled = TRUE',
+      [account.id]
+    );
+    for (const folder of folders) {
+      await syncFolder(client, account, folder, aliasResult.rows);
     }
+    await pool.query(
+      `UPDATE mail_accounts SET body_sync_completed_at = COALESCE(body_sync_completed_at, NOW()),
+       first_sync_completed = TRUE WHERE id = $1`,
+      [account.id]
+    );
     await pool.query(
       `UPDATE mail_accounts SET status = 'connected', verification_status = 'verified',
        sync_status = 'completed', failure_count = 0, last_error = NULL,
