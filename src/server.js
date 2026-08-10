@@ -244,7 +244,6 @@ function mailMessageResponse(message, includeBody = false) {
 function publicMailMessageResponse(message) {
   return {
     id: message.id,
-    folders: Array.isArray(message.mailbox_paths) ? message.mailbox_paths : [],
     sender: message.sender,
     subject: message.subject,
     bodyPreview: message.body_preview || '',
@@ -454,13 +453,12 @@ app.post('/api/query', async (req, res, next) => {
     const cursor = parsePublicCursor(req.body.cursor);
     if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
     const [messageResult, statsResult, runtimeResult] = await Promise.all([pool.query(
-      `SELECT id, sender, subject, body_preview, mailbox_paths, received_at,
+      `SELECT id, sender, subject, body_preview, received_at,
               code_encrypted, code_masked, confidence, code_expires_at
        FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()
          AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
-              OR body_preview ILIKE '%' || $2 || '%'
-              OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%')
+              OR body_preview ILIKE '%' || $2 || '%')
          AND ($3::boolean = FALSE OR (code_encrypted IS NOT NULL AND code_expires_at > NOW()))
          AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
        ORDER BY received_at DESC, id DESC LIMIT $6`,
@@ -501,7 +499,7 @@ app.post('/api/query/message', async (req, res, next) => {
     const alias = await findPublicAlias(token);
     if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
     const result = await pool.query(
-      `SELECT id, sender, subject, body_text_encrypted, mailbox_paths,
+      `SELECT id, sender, subject, body_text_encrypted,
               body_preview, received_at
        FROM mail_messages
        WHERE id = $1 AND alias_id = $2 AND mail_expires_at > NOW()`,
@@ -624,15 +622,14 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
     if (aliasIds.length) {
       const [messagesResult, statsResult] = await Promise.all([
         pool.query(
-          `SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, received_at
+          `SELECT id, alias_id, sender, subject, body_preview, received_at
            FROM (
-             SELECT id, alias_id, sender, subject, body_preview, mailbox_paths, received_at,
+             SELECT id, alias_id, sender, subject, body_preview, received_at,
                     ROW_NUMBER() OVER (PARTITION BY alias_id ORDER BY received_at DESC, id DESC) AS row_number
              FROM mail_messages
              WHERE alias_id = ANY($1::bigint[]) AND mail_expires_at > NOW()
                AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
-                    OR body_preview ILIKE '%' || $2 || '%'
-                    OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%')
+                    OR body_preview ILIKE '%' || $2 || '%')
                AND ($4::timestamptz IS NULL OR (received_at, id) < ($4::timestamptz, $5::bigint))
            ) recent
            WHERE row_number <= $3::int + 1
@@ -645,7 +642,6 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
                   COUNT(*) FILTER (
                     WHERE $2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
                           OR body_preview ILIKE '%' || $2 || '%'
-                          OR array_to_string(mailbox_paths, ', ') ILIKE '%' || $2 || '%'
                   )::int AS matched_count,
                   MAX(received_at) AS latest_received_at
            FROM mail_messages

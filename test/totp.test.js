@@ -96,9 +96,9 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.doesNotMatch(script, /已转换并同步到管理后台/);
   assert.match(html, /id="totp-view"/);
-  assert.match(html, /styles\.css\?v=20260811-23/);
+  assert.match(html, /styles\.css\?v=20260811-24/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260811-23/);
+  assert.match(html, /query\.js\?v=20260811-24/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);

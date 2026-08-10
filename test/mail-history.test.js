@@ -73,7 +73,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
 });
 
 test('public mail UI renders plain text bodies and seven-day history', () => {
-  assert.match(html, /输入查询密钥后，在右侧查看邮件信息/);
+  assert.match(html, /输入查询密钥后，查看发件人、主题、时间和邮件内容/);
   assert.match(html, /接收验证码/);
   assert.doesNotMatch(html, /mail-code-count/);
   assert.match(html, /id="inbox-workspace"/);
@@ -91,7 +91,8 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /data-copy-mail-code/);
   assert.match(script, /mailState\.filter === 'code' \? renderCodeItem : renderMessageItem/);
   assert.doesNotMatch(script, /detail\.body[^\n]*innerHTML/);
-  assert.match(script, /邮件信息/);
+  assert.match(script, /邮件内容/);
+  assert.doesNotMatch(script, /formatFolders\(message\.folders\)|formatFolders\(detail\.folders\)|所在文件夹/);
   const detailRenderer = script.slice(
     script.indexOf('async function openMailMessage'),
     script.indexOf('function parseBatchTokens')

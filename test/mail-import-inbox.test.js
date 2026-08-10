@@ -160,6 +160,10 @@ test('batch inbox searches seven-day mail and keeps results grouped by full mail
   assert.match(publicQuery, /data-batch-inbox-toggle/);
   assert.match(publicQuery, /batchInboxState\.expanded/);
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
+  assert.match(publicQuery, /batch-inbox-message-subject/);
+  assert.match(publicQuery, /batch-inbox-message-preview/);
+  assert.match(publicQuery, /batch-inbox-message-line[\s\S]*?formatMailDate\(message\.receivedAt\)/);
+  assert.doesNotMatch(publicQuery, /formatFolders\(message\.folders\)|formatFolders\(detail\.folders\)|所在文件夹/);
   assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|data-copy-detail-code|纯文本正文/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
   assert.match(styles, /\.batch-inbox-group\.expanded \.batch-inbox-chevron/);

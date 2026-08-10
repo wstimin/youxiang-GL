@@ -237,7 +237,7 @@ function updateMailFilterUi() {
   const codeOnly = mailState.filter === 'code';
   const resultsVisible = mailPlaceholder.classList.contains('hidden');
   mailListTitle.textContent = codeOnly ? '接收验证码' : '邮箱';
-  mailSearchInput.placeholder = codeOnly ? '搜索验证码邮件的发件人、主题或摘要' : '搜索发件人、主题或摘要';
+  mailSearchInput.placeholder = codeOnly ? '搜索验证码邮件的发件人、主题或摘要' : '搜索发件人、主题或邮件内容';
   refreshMailButton.title = codeOnly ? '刷新验证码' : '刷新邮件';
   refreshMailButton.setAttribute('aria-label', refreshMailButton.title);
   newMailBanner.querySelector('span').textContent = codeOnly ? '有新的验证码，点击查看' : '有新邮件，点击查看';
@@ -259,15 +259,15 @@ function setMailResultsVisible(visible) {
 function resetMailDetail() {
   mailState.selectedId = null;
   mailDetail.classList.remove('mobile-visible');
-  mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看邮件信息。</span></div>';
+  mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看邮件内容。</span></div>';
   renderIcons();
 }
 
 function renderMessageItem(message) {
   return `<button class="public-message-item" type="button" data-message-id="${message.id}">
     <span class="public-message-row"><span class="public-sender"><span class="public-sender-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span><strong>${escapeHtml(message.sender || '未知发件人')}</strong></span><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span>
-    <span class="public-message-copy"><span class="public-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="public-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span></span>
-    <span class="public-message-foot"><span>${escapeHtml(formatFolders(message.folders))}</span><i data-lucide="chevron-right"></i></span>
+    <span class="public-message-copy"><span class="public-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="public-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的内容。')}</span></span>
+    <i data-lucide="chevron-right" class="public-message-arrow"></i>
   </button>`;
 }
 
@@ -382,11 +382,10 @@ async function openMailMessage(message, button) {
     </header>
     <dl class="public-detail-meta">
       <div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div>
-      <div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(detail.folders))}</dd></div>
       <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div>
     </dl>
-    <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件信息</span></div><pre class="public-detail-body"></pre></section>`;
-    mailDetail.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的邮件信息。';
+    <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件内容</span></div><pre class="public-detail-body"></pre></section>`;
+    mailDetail.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的内容。';
     mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => mailDetail.classList.remove('mobile-visible'));
     renderIcons();
   } catch (error) {
@@ -475,8 +474,8 @@ function batchInboxStateLabel(item) {
 function renderBatchInboxMessage(message, mailboxIndex) {
   return `<button class="batch-inbox-message" type="button" data-batch-inbox-message="${message.id}" data-mailbox-index="${mailboxIndex}">
     <span class="batch-inbox-message-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span>
-    <span class="batch-inbox-message-copy"><span class="batch-inbox-message-line"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span><span class="batch-inbox-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="batch-inbox-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的摘要。')}</span></span>
-    <span class="batch-inbox-message-tail"><span>${escapeHtml(formatFolders(message.folders))}</span><i data-lucide="chevron-right"></i></span>
+    <span class="batch-inbox-message-copy"><span class="batch-inbox-message-line"><strong>${escapeHtml(message.sender || '未知发件人')}</strong><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt))}</time></span><span class="batch-inbox-message-subject">${escapeHtml(message.subject || '无主题')}</span><span class="batch-inbox-message-preview">${escapeHtml(message.bodyPreview || '这封邮件没有可显示的内容。')}</span></span>
+    <i data-lucide="chevron-right" class="batch-inbox-message-arrow"></i>
   </button>`;
 }
 
@@ -586,8 +585,8 @@ async function openBatchInboxMessage(index, message) {
   try {
     const data = await request('/api/query/message', { token, messageId: Number(message.id) });
     const detail = data.message;
-    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>所在文件夹</dt><dd>${escapeHtml(formatFolders(detail.folders))}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件信息</span></div><pre class="public-detail-body"></pre></section>`;
-    batchInboxDetailContent.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的邮件信息。';
+    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件内容</span></div><pre class="public-detail-body"></pre></section>`;
+    batchInboxDetailContent.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的内容。';
     batchInboxDetailContent.querySelector('[data-close-batch-detail]').addEventListener('click', () => batchInboxDetail.close());
     renderIcons();
   } catch (error) {
