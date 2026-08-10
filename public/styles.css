@@ -293,6 +293,7 @@ a { color: inherit; }
 .mail-results-pane { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(310px, .78fr) minmax(380px, 1.22fr); overflow: hidden; background: white; }
 .mail-results-pane > .public-tool-placeholder { grid-column: 1 / -1; }
 .public-message-pane { min-width: 0; overflow: auto; border-right: 1px solid var(--line); position: relative; background: white; }
+.public-message-pane.code-mode { grid-column: 1 / -1; border-right: 0; }
 .public-pane-head { min-height: 79px; padding: 15px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; background: rgba(255,255,255,.97); }
 .public-pane-title { min-width: 0; display: grid; gap: 3px; }
 .public-pane-title h1 { margin-bottom: 0; }
@@ -313,6 +314,10 @@ a { color: inherit; }
 .public-message-item { width: 100%; min-width: 0; min-height: 128px; padding: 14px 15px; border: 0; border-top: 1px solid var(--line); background: white; color: inherit; text-align: left; display: grid; align-content: start; gap: 7px; }
 .public-message-item:hover { background: #f5faf8; }
 .public-message-item.active { background: var(--brand-soft); box-shadow: inset 3px 0 var(--brand); }
+.public-code-item { min-width: 0; min-height: 132px; padding: 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; background: white; }
+.public-code-main { min-width: 0; display: grid; gap: 8px; }
+.public-code-value { color: var(--brand-dark); font: 800 28px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0; overflow-wrap: anywhere; }
+.public-code-subject { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .public-message-row, .public-message-foot { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .public-sender { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .public-sender-avatar { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 6px; background: #e8efed; color: #607a74; font-size: 10px; font-weight: 850; }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260810-22">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260811-23">
 </head>
 <body class="public-shell public-app-open">
   <main class="public-main">
@@ -43,17 +43,17 @@
             <p id="mail-query-error" class="message" role="alert"></p>
             <div class="mail-action-buttons" role="group" aria-label="邮箱操作">
               <button class="btn btn-secondary active" type="submit" data-mail-filter="all"><i data-lucide="inbox" class="icon"></i><span>查看收件箱</span><strong id="mail-total-count">0</strong></button>
-              <button class="btn btn-secondary" type="submit" data-mail-filter="code"><i data-lucide="filter" class="icon"></i><span>只看验证码邮件</span></button>
+              <button class="btn btn-secondary" type="submit" data-mail-filter="code"><i data-lucide="shield-check" class="icon"></i><span>接收验证码</span></button>
             </div>
           </form>
           <div class="mail-results-pane">
-            <div id="mail-placeholder" class="public-tool-placeholder"><i data-lucide="mail-search"></i><strong>邮箱结果显示在这里</strong><span>输入查询密钥后，可以查看收件箱或搜索邮件信息。</span></div>
+            <div id="mail-placeholder" class="public-tool-placeholder"><i data-lucide="mail-search"></i><strong>邮箱结果显示在这里</strong><span>输入查询密钥后，可以查看收件箱或接收有效验证码。</span></div>
             <section id="mail-list-pane" class="public-message-pane hidden">
               <header class="public-pane-head">
                 <div class="public-pane-title"><span class="pane-kicker">MAILBOX</span><h1 id="mail-list-title">邮箱</h1><small id="mail-last-refresh">尚未更新</small></div>
                 <button id="refresh-mail" class="btn btn-secondary btn-icon" type="button" title="刷新邮件" aria-label="刷新邮件"><i data-lucide="refresh-cw" class="icon"></i></button>
               </header>
-              <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新邮件，点击查看</span></button>
+              <button id="new-mail-banner" class="public-new-mail hidden" type="button"><i data-lucide="arrow-up" class="icon"></i><span>有新内容，点击查看</span></button>
               <div class="public-search">
                 <i data-lucide="search" class="icon"></i>
                 <input id="mail-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人、主题或摘要">
@@ -149,6 +149,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260810-22"></script>
+  <script src="/assets/query.js?v=20260811-23"></script>
 </body>
 </html>

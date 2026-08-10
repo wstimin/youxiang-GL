@@ -225,6 +225,7 @@ function setPublicView(view) {
 
 function selectAccessMail(filter = 'all') {
   mailState.filter = filter;
+  updateMailFilterUi();
   setPublicView('mail');
   document.querySelectorAll('[data-mail-filter]').forEach((button) => {
     button.classList.toggle('active', button.dataset.mailFilter === filter);
@@ -232,10 +233,27 @@ function selectAccessMail(filter = 'all') {
   mailTokenInput.focus();
 }
 
+function updateMailFilterUi() {
+  const codeOnly = mailState.filter === 'code';
+  const resultsVisible = mailPlaceholder.classList.contains('hidden');
+  mailListTitle.textContent = codeOnly ? '接收验证码' : '邮箱';
+  mailSearchInput.placeholder = codeOnly ? '搜索验证码邮件的发件人、主题或摘要' : '搜索发件人、主题或摘要';
+  refreshMailButton.title = codeOnly ? '刷新验证码' : '刷新邮件';
+  refreshMailButton.setAttribute('aria-label', refreshMailButton.title);
+  newMailBanner.querySelector('span').textContent = codeOnly ? '有新的验证码，点击查看' : '有新邮件，点击查看';
+  const emptyTitle = mailListEmpty.querySelector('strong');
+  const emptyDescription = mailListEmpty.querySelector('span');
+  emptyTitle.textContent = codeOnly ? '暂时没有有效验证码' : '没有找到邮件';
+  emptyDescription.textContent = codeOnly ? '验证码邮件到达后会自动显示。' : '可以刷新或修改搜索条件。';
+  mailListPane.classList.toggle('code-mode', resultsVisible && codeOnly);
+  mailDetail.classList.toggle('hidden', !resultsVisible || codeOnly);
+}
+
 function setMailResultsVisible(visible) {
   mailPlaceholder.classList.toggle('hidden', visible);
   mailListPane.classList.toggle('hidden', !visible);
-  mailDetail.classList.toggle('hidden', !visible);
+  mailDetail.classList.toggle('hidden', !visible || mailState.filter === 'code');
+  mailListPane.classList.toggle('code-mode', visible && mailState.filter === 'code');
 }
 
 function resetMailDetail() {
@@ -253,7 +271,27 @@ function renderMessageItem(message) {
   </button>`;
 }
 
+function renderCodeItem(message) {
+  return `<article class="public-code-item">
+    <div class="public-code-main">
+      <div class="public-message-row"><span class="public-sender"><span class="public-sender-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span><strong>${escapeHtml(message.sender || '未知发件人')}</strong></span><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt, true))}</time></div>
+      <strong class="public-code-value">${escapeHtml(message.code || message.codeMasked || '------')}</strong>
+      <span class="public-code-subject">${escapeHtml(message.subject || '验证码邮件')}</span>
+    </div>
+    <button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>
+  </article>`;
+}
+
 function bindMessageItems(messages) {
+  if (mailState.filter === 'code') {
+    for (const message of messages) {
+      const button = mailMessageList.querySelector(`[data-copy-mail-code="${message.id}"]`);
+      if (button) button.addEventListener('click', async () => {
+        try { await copyCode(message.code, '验证码已复制'); } catch (_error) { mailListStatus.textContent = '复制失败，请手动输入验证码'; }
+      });
+    }
+    return;
+  }
   for (const message of messages) {
     const button = mailMessageList.querySelector(`[data-message-id="${message.id}"]`);
     if (button) button.addEventListener('click', () => openMailMessage(message, button));
@@ -263,8 +301,12 @@ function bindMessageItems(messages) {
 function updateMailListState(loadedCount) {
   mailListEmpty.classList.toggle('hidden', mailMessageList.children.length > 0 || mailState.loading);
   mailLoadMoreButton.classList.toggle('hidden', !mailState.cursor || mailState.loading);
-  if (mailState.loading) mailListStatus.textContent = mailMessageList.children.length ? '正在加载更多邮件...' : '正在加载邮件...';
-  else if (mailMessageList.children.length) mailListStatus.textContent = loadedCount ? `已加载 ${mailMessageList.children.length} 封邮件` : '';
+  if (mailState.loading) mailListStatus.textContent = mailMessageList.children.length
+    ? mailState.filter === 'code' ? '正在加载更多验证码...' : '正在加载更多邮件...'
+    : mailState.filter === 'code' ? '正在接收验证码...' : '正在加载邮件...';
+  else if (mailMessageList.children.length) mailListStatus.textContent = loadedCount
+    ? mailState.filter === 'code' ? `已接收 ${mailMessageList.children.length} 个验证码` : `已加载 ${mailMessageList.children.length} 封邮件`
+    : '';
   else mailListStatus.textContent = '';
 }
 
@@ -292,7 +334,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     if (requestId !== mailState.requestId) return false;
     const messages = Array.isArray(data.messages) ? data.messages : [];
     updateMailbox(data);
-    mailMessageList.insertAdjacentHTML('beforeend', messages.map(renderMessageItem).join(''));
+    mailMessageList.insertAdjacentHTML('beforeend', messages.map(mailState.filter === 'code' ? renderCodeItem : renderMessageItem).join(''));
     bindMessageItems(messages);
     mailState.cursor = data.nextCursor || null;
     if (reset) {
@@ -661,7 +703,7 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
     document.querySelectorAll('[data-mail-filter]').forEach((action) => {
       action.classList.toggle('active', action.dataset.mailFilter === filter);
     });
-    mailListTitle.textContent = '邮箱';
+    updateMailFilterUi();
     setPublicView('mail');
     if (changed) {
       try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
@@ -679,6 +721,7 @@ mailForm.addEventListener('submit', async (event) => {
   mailErrorBox.textContent = '';
   const button = event.submitter || mailForm.querySelector('[type="submit"]');
   mailState.filter = button.dataset.mailFilter || mailState.filter || 'all';
+  updateMailFilterUi();
   document.querySelectorAll('[data-mail-filter]').forEach((action) => {
     action.classList.toggle('active', action.dataset.mailFilter === mailState.filter);
   });

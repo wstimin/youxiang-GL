@@ -88,7 +88,7 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(html, /<header class="public-tool-head">[\s\S]*?<h1>邮箱<\/h1>/);
   assert.match(html, /<form id="mail-query-form" class="public-tool-form mail-query-form">/);
   assert.match(html, /data-mail-filter="all"[\s\S]*?查看收件箱/);
-  assert.match(html, /data-mail-filter="code"[\s\S]*?只看验证码邮件/);
+  assert.match(html, /data-mail-filter="code"[\s\S]*?接收验证码/);
   assert.doesNotMatch(html, /mail-function-pane|mail-access-panel|id="access-view"|access-app-bar|access-content|access-mail-preview/);
   assert.match(styles, /\.public-mail-layout \{ grid-template-columns: minmax\(330px, \.72fr\) minmax\(440px, 1\.28fr\)/);
   assert.match(styles, /\.mail-action-buttons \{ display: grid; gap: 9px; \}/);
@@ -160,7 +160,7 @@ test('batch inbox searches seven-day mail and keeps results grouped by full mail
   assert.match(publicQuery, /data-batch-inbox-toggle/);
   assert.match(publicQuery, /batchInboxState\.expanded/);
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
-  assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|message\.codeMasked|data-copy-detail-code|纯文本正文/);
+  assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|data-copy-detail-code|纯文本正文/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
   assert.match(styles, /\.batch-inbox-group\.expanded \.batch-inbox-chevron/);
   assert.match(styles, /\.public-nav \{ min-width: 0; display: flex;[\s\S]*?overflow-x: auto;/);

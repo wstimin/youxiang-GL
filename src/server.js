@@ -252,6 +252,19 @@ function publicMailMessageResponse(message) {
   };
 }
 
+function publicCodeMessageResponse(message) {
+  return {
+    id: message.id,
+    sender: message.sender,
+    subject: message.subject,
+    code: decrypt(message.code_encrypted) || '',
+    codeMasked: message.code_masked || '',
+    confidence: message.confidence,
+    receivedAt: message.received_at,
+    expiresAt: message.code_expires_at
+  };
+}
+
 function parsePublicCursor(value) {
   if (!value) return { receivedAt: null, id: null };
   try {
@@ -441,7 +454,8 @@ app.post('/api/query', async (req, res, next) => {
     const cursor = parsePublicCursor(req.body.cursor);
     if (!cursor) return res.status(400).json({ error: '邮件游标无效' });
     const [messageResult, statsResult, runtimeResult] = await Promise.all([pool.query(
-      `SELECT id, sender, subject, body_preview, mailbox_paths, received_at
+      `SELECT id, sender, subject, body_preview, mailbox_paths, received_at,
+              code_encrypted, code_masked, confidence, code_expires_at
        FROM mail_messages
        WHERE alias_id = $1 AND mail_expires_at > NOW()
          AND ($2 = '' OR sender ILIKE '%' || $2 || '%' OR subject ILIKE '%' || $2 || '%'
@@ -465,7 +479,7 @@ app.post('/api/query', async (req, res, next) => {
       [String(workerFreshSeconds)]
     )]);
     await audit({ actor: `alias:${alias.id}`, action: 'query_success', target: String(alias.id), ip });
-    const messages = messageResult.rows.slice(0, limit).map(publicMailMessageResponse);
+    const messages = messageResult.rows.slice(0, limit).map(codeOnly ? publicCodeMessageResponse : publicMailMessageResponse);
     const hasMore = messageResult.rows.length > limit;
     return res.json({
       mailbox: publicMailboxResponse(alias, statsResult.rows[0], runtimeResult.rows[0]),
