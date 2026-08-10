@@ -98,7 +98,7 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.match(html, /id="totp-view"/);
   assert.match(html, /styles\.css\?v=20260810-22/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260810-21/);
+  assert.match(html, /query\.js\?v=20260810-22/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
@@ -121,19 +121,22 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   const script = fs.readFileSync('public/query.js', 'utf8');
   const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/batch-inbox'"));
 
-  assert.match(server, /BATCH_QUERY_LIMIT_PER_10_MINUTES \|\| 50/);
   assert.match(batchRoute, /req\.body\.tokens\.length > 50/);
+  assert.match(batchRoute, /req\.body\.tokens\.map\(normalizePublicToken\)/);
   assert.match(batchRoute, /a\.token_digest = ANY\(\$1::text\[\]\)/);
   assert.match(batchRoute, /LEFT JOIN LATERAL/);
   assert.match(batchRoute, /status: message \? 'received' : 'waiting'/);
   assert.match(batchRoute, /status: 'invalid'/);
+  assert.match(batchRoute, /status: 'invalid_format'/);
+  assert.doesNotMatch(batchRoute, /rateLimit\(|failureGuard\(/);
   assert.match(batchRoute, /refreshAfterSeconds: 15/);
   assert.doesNotMatch(batchRoute, /token_encrypted|SELECT[^\n]*address[^\n]*token_encrypted/);
   assert.match(html, /data-public-view="mail"/);
   assert.match(html, /data-public-view="batch"/);
   assert.match(html, /id="mail-batch-tokens"/);
   assert.match(html, /id="mail-batch-result"/);
-  assert.match(script, /request\('\/api\/query\/batch', \{ tokens \}\)/);
+  assert.match(script, /requestBatchTokens\('\/api\/query\/batch', tokens\)/);
+  assert.match(script, /splitQueryTokens\(tokens\)/);
   assert.match(script, /setTimeout\(\(\) => refreshMailBatch\(\)/);
   assert.match(script, /let activeMailBatchTokens = \[\]/);
   assert.doesNotMatch(script, /localStorage|sessionStorage/);

@@ -42,6 +42,8 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   const listRoute = server.slice(server.indexOf("app.post('/api/query'"), server.indexOf("app.post('/api/query/message'"));
   const bodyRoute = server.slice(server.indexOf("app.post('/api/query/message'"), server.indexOf("app.post('/api/query/batch'"));
   assert.match(listRoute, /parsePublicCursor\(req\.body\.cursor\)/);
+  assert.match(listRoute, /normalizePublicToken\(req\.body\.token\)/);
+  assert.doesNotMatch(listRoute, /rateLimit\(|failureGuard\(/);
   assert.match(listRoute, /Math\.min\(50/);
   assert.match(listRoute, /FROM mail_messages/);
   assert.match(listRoute, /WHERE alias_id = \$1 AND mail_expires_at > NOW\(\)/);
@@ -61,6 +63,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.match(bodyRoute, /body_text_encrypted/);
   assert.match(bodyRoute, /message\.body = decrypt\(row\.body_text_encrypted\)/);
   assert.doesNotMatch(bodyRoute, /query_message_blocked|status\(403\)|verificationModeEnabled/);
+  assert.doesNotMatch(bodyRoute, /rateLimit\(|failureGuard\(/);
   assert.doesNotMatch(bodyRoute, /token_encrypted/);
   const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/batch-inbox'"));
   assert.match(batchRoute, /SELECT id, sender, subject, mailbox_paths, code_encrypted, received_at, expires_at, mail_expires_at/);

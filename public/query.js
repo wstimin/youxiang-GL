@@ -357,23 +357,39 @@ function parseBatchTokens() {
   return mailBatchTokensInput.value.split(/\r?\n/).map((token) => token.trim()).filter(Boolean);
 }
 
+function splitQueryTokens(tokens, size = 50) {
+  const batches = [];
+  for (let index = 0; index < tokens.length; index += size) batches.push(tokens.slice(index, index + size));
+  return batches;
+}
+
+async function requestBatchTokens(url, tokens, extra = {}) {
+  const results = [];
+  for (const [batchIndex, batch] of splitQueryTokens(tokens).entries()) {
+    const data = await request(url, { ...extra, tokens: batch });
+    for (const item of data.results || []) results.push({ ...item, index: batchIndex * 50 + item.index });
+  }
+  return { results, refreshAfterSeconds: 15 };
+}
+
 function mailBatchStatus(item) {
   if (item.status === 'received') return '<span class="batch-status received"><span></span>已收到</span>';
   if (item.status === 'waiting') return '<span class="batch-status waiting"><span></span>等待中</span>';
+  if (item.status === 'invalid_format') return '<span class="batch-status invalid"><span></span>格式错误</span>';
   return '<span class="batch-status invalid"><span></span>密钥无效</span>';
 }
 
 function renderMailBatch(data) {
   const received = data.results.filter((item) => item.status === 'received').length;
   const waiting = data.results.filter((item) => item.status === 'waiting').length;
-  const invalid = data.results.filter((item) => item.status === 'invalid').length;
+  const invalid = data.results.filter((item) => item.status === 'invalid' || item.status === 'invalid_format').length;
   mailBatchPlaceholder.classList.add('hidden');
   mailBatchResultBox.classList.remove('hidden');
   mailBatchResultBox.innerHTML = `<div class="result-meta batch-result-meta"><strong>查询结果</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
     <div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
       <div class="batch-result-identity"><span class="batch-row-index">${item.index + 1}</span><div><strong>查询项 ${item.index + 1}</strong><small>独立查询密钥</small></div></div>
       <div class="batch-result-state">${mailBatchStatus(item)}</div>
-      <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>${escapeHtml(item.message.sender || item.message.subject || '验证码邮件')}</small>` : `<strong>------</strong><small>${item.status === 'invalid' ? '请检查查询密钥' : '等待最新验证码'}</small>`}</div>
+      <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>${escapeHtml(item.message.sender || item.message.subject || '验证码邮件')}</small>` : `<strong>------</strong><small>${item.status === 'invalid_format' ? '请使用 cv_ 密钥或邮箱--密钥格式' : item.status === 'invalid' ? '查询密钥不存在或已失效' : '等待最新验证码'}</small>`}</div>
       <div class="batch-result-action">${item.message ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-batch-code="${item.index}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
     </section>`).join('')}</div>
     <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的结果</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>`;
@@ -392,7 +408,7 @@ async function refreshMailBatch() {
   mailBatchRefreshInFlight = true;
   mailBatchErrorBox.textContent = '';
   try {
-    renderMailBatch(await request('/api/query/batch', { tokens: activeMailBatchTokens }));
+    renderMailBatch(await requestBatchTokens('/api/query/batch', activeMailBatchTokens));
   } catch (error) {
     clearTimeout(mailBatchRefreshTimer);
     mailBatchErrorBox.textContent = error.message;
@@ -406,6 +422,7 @@ function parseBatchInboxTokens() {
 }
 
 function batchInboxStateLabel(item) {
+  if (item.status === 'invalid_format') return '<span class="batch-inbox-state invalid"><span></span>格式错误</span>';
   if (item.status === 'invalid') return '<span class="batch-inbox-state invalid"><span></span>密钥无效</span>';
   if (item.mailbox?.state === 'delayed') return '<span class="batch-inbox-state delayed"><span></span>同步延迟</span>';
   if (item.mailbox?.state === 'paused') return '<span class="batch-inbox-state invalid"><span></span>邮箱已暂停</span>';
@@ -423,7 +440,7 @@ function renderBatchInboxMessage(message, mailboxIndex) {
 
 function renderBatchInbox() {
   const results = batchInboxState.results;
-  const valid = results.filter((item) => item.status !== 'invalid');
+  const valid = results.filter((item) => item.status !== 'invalid' && item.status !== 'invalid_format');
   const invalid = results.length - valid.length;
   const withMail = valid.filter((item) => Number(item.mailbox?.matchedMessages || 0) > 0).length;
   const total = valid.reduce((sum, item) => sum + Number(item.mailbox?.totalMessages || 0), 0);
@@ -437,12 +454,12 @@ function renderBatchInbox() {
     const title = mailbox?.address || `查询项 ${item.index + 1}`;
     const latest = mailbox?.lastMessageAt ? `最近 ${formatMailDate(mailbox.lastMessageAt, true)}` : '最近 7 天无邮件';
     const panelId = `batch-inbox-panel-${item.index}`;
-    return `<section class="batch-inbox-group ${expanded ? 'expanded' : ''} ${item.status === 'invalid' ? 'is-invalid' : ''}">
+    return `<section class="batch-inbox-group ${expanded ? 'expanded' : ''} ${item.status === 'invalid' || item.status === 'invalid_format' ? 'is-invalid' : ''}">
       <button class="batch-inbox-group-toggle" type="button" data-batch-inbox-toggle="${item.index}" aria-expanded="${expanded}" aria-controls="${panelId}">
         <span class="batch-inbox-group-index">${item.index + 1}</span><span class="batch-inbox-group-identity"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(countLabel)} · ${escapeHtml(latest)}</small></span><span class="batch-inbox-group-state">${batchInboxStateLabel(item)}</span><i data-lucide="chevron-down" class="batch-inbox-chevron"></i>
       </button>
       <div id="${panelId}" class="batch-inbox-panel ${expanded ? '' : 'hidden'}">
-        ${item.status === 'invalid' ? '<div class="batch-inbox-empty"><i data-lucide="key-round"></i><span>查询密钥无效或已失效，请检查后重新导入。</span></div>' : item.messages.length ? `<div class="batch-inbox-message-list">${item.messages.map((message) => renderBatchInboxMessage(message, item.index)).join('')}</div>${item.nextCursor ? `<div class="batch-inbox-load"><button class="btn btn-secondary" type="button" data-batch-inbox-more="${item.index}"><i data-lucide="chevrons-down" class="icon"></i><span>加载更多</span></button></div>` : ''}` : `<div class="batch-inbox-empty"><i data-lucide="mail-search"></i><span>${batchInboxState.keyword ? '这个邮箱没有匹配的邮件。' : '这个邮箱最近 7 天没有邮件。'}</span></div>`}
+        ${item.status === 'invalid_format' ? '<div class="batch-inbox-empty"><i data-lucide="key-round"></i><span>格式错误，请使用 cv_ 密钥或邮箱--密钥格式。</span></div>' : item.status === 'invalid' ? '<div class="batch-inbox-empty"><i data-lucide="key-round"></i><span>查询密钥不存在或已失效，请检查后重新导入。</span></div>' : item.messages.length ? `<div class="batch-inbox-message-list">${item.messages.map((message) => renderBatchInboxMessage(message, item.index)).join('')}</div>${item.nextCursor ? `<div class="batch-inbox-load"><button class="btn btn-secondary" type="button" data-batch-inbox-more="${item.index}"><i data-lucide="chevrons-down" class="icon"></i><span>加载更多</span></button></div>` : ''}` : `<div class="batch-inbox-empty"><i data-lucide="mail-search"></i><span>${batchInboxState.keyword ? '这个邮箱没有匹配的邮件。' : '这个邮箱最近 7 天没有邮件。'}</span></div>`}
       </div>
     </section>`;
   }).join('');
@@ -471,17 +488,14 @@ async function loadBatchInbox({ preserveExpanded = true } = {}) {
   refreshBatchInboxButton.disabled = true;
   const previousExpanded = new Set(batchInboxState.expanded);
   try {
-    const data = await request('/api/query/batch-inbox', {
-      tokens: activeBatchInboxTokens,
-      keyword: batchInboxSearchInput.value.trim(),
-      limitPerMailbox: 20
-    });
+    const keyword = batchInboxSearchInput.value.trim();
+    const data = await requestBatchTokens('/api/query/batch-inbox', activeBatchInboxTokens, { keyword, limitPerMailbox: 20 });
     batchInboxState.results = Array.isArray(data.results) ? data.results : [];
-    batchInboxState.keyword = data.keyword || '';
+    batchInboxState.keyword = keyword;
     batchInboxState.expanded = preserveExpanded ? new Set([...previousExpanded].filter((index) => batchInboxState.results.some((item) => item.index === index))) : new Set();
     if (!batchInboxState.expanded.size) {
       const firstWithMail = batchInboxState.results.find((item) => Number(item.mailbox?.matchedMessages || 0) > 0);
-      const firstValid = batchInboxState.results.find((item) => item.status !== 'invalid');
+      const firstValid = batchInboxState.results.find((item) => item.status !== 'invalid' && item.status !== 'invalid_format');
       const initial = firstWithMail || firstValid;
       if (initial) batchInboxState.expanded.add(initial.index);
     }
@@ -512,7 +526,7 @@ async function loadMoreBatchInbox(index, button) {
       cursor: item.nextCursor
     });
     const next = data.results?.[0];
-    if (!next || next.status === 'invalid') throw new Error('这个邮箱的查询密钥已失效');
+    if (!next || next.status === 'invalid' || next.status === 'invalid_format') throw new Error('这个邮箱的查询密钥无效');
     item.messages.push(...next.messages);
     item.nextCursor = next.nextCursor;
     renderBatchInbox();
@@ -730,7 +744,7 @@ clearMailSearchButton.addEventListener('click', () => {
 mailBatchTokensInput.addEventListener('input', () => {
   const count = parseBatchTokens().length;
   mailBatchCount.textContent = String(count);
-  mailBatchCount.parentElement.classList.toggle('danger-text', count > 50);
+  mailBatchCount.parentElement.classList.remove('danger-text');
 });
 
 mailBatchForm.addEventListener('submit', async (event) => {
@@ -738,13 +752,12 @@ mailBatchForm.addEventListener('submit', async (event) => {
   mailBatchErrorBox.textContent = '';
   const tokens = parseBatchTokens();
   if (!tokens.length) return void (mailBatchErrorBox.textContent = '请至少输入一个查询密钥');
-  if (tokens.length > 50) return void (mailBatchErrorBox.textContent = '每次最多查询 50 个密钥');
   const button = mailBatchForm.querySelector('[type="submit"]');
   button.disabled = true;
   clearTimeout(mailBatchRefreshTimer);
   activeMailBatchTokens = tokens;
   try {
-    renderMailBatch(await request('/api/query/batch', { tokens }));
+    renderMailBatch(await requestBatchTokens('/api/query/batch', tokens));
   } catch (error) {
     activeMailBatchTokens = [];
     mailBatchErrorBox.textContent = error.message;
@@ -756,7 +769,7 @@ mailBatchForm.addEventListener('submit', async (event) => {
 batchInboxTokensInput.addEventListener('input', () => {
   const count = parseBatchInboxTokens().length;
   batchInboxCount.textContent = String(count);
-  batchInboxCount.parentElement.classList.toggle('danger-text', count > 50);
+  batchInboxCount.parentElement.classList.remove('danger-text');
 });
 
 batchInboxForm.addEventListener('submit', async (event) => {
@@ -764,7 +777,6 @@ batchInboxForm.addEventListener('submit', async (event) => {
   batchInboxErrorBox.textContent = '';
   const tokens = parseBatchInboxTokens();
   if (!tokens.length) return void (batchInboxErrorBox.textContent = '请至少输入一个查询密钥');
-  if (tokens.length > 50) return void (batchInboxErrorBox.textContent = '每次最多查询 50 个密钥');
   const button = batchInboxForm.querySelector('[type="submit"]');
   button.disabled = true;
   activeBatchInboxTokens = tokens;

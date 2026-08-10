@@ -134,6 +134,9 @@ test('batch inbox searches seven-day mail and keeps results grouped by full mail
   );
 
   assert.match(batchInboxRoute, /req\.body\.tokens\.length > 50/);
+  assert.match(batchInboxRoute, /req\.body\.tokens\.map\(normalizePublicToken\)/);
+  assert.match(batchInboxRoute, /status: 'invalid_format'/);
+  assert.doesNotMatch(batchInboxRoute, /rateLimit\(|failureGuard\(/);
   assert.match(batchInboxRoute, /a\.token_digest = ANY\(\$1::text\[\]\)/);
   assert.match(batchInboxRoute, /mail_expires_at > NOW\(\)/);
   assert.match(batchInboxRoute, /sender ILIKE[\s\S]*subject ILIKE[\s\S]*body_preview ILIKE/);
@@ -151,6 +154,9 @@ test('batch inbox searches seven-day mail and keeps results grouped by full mail
   assert.doesNotMatch(html, /验证码方式/);
   assert.match(html, /id="batch-inbox-groups"/);
   assert.match(publicQuery, /request\('\/api\/query\/batch-inbox'/);
+  assert.match(publicQuery, /function splitQueryTokens\(tokens, size = 50\)/);
+  assert.match(publicQuery, /requestBatchTokens\('\/api\/query\/batch-inbox'/);
+  assert.doesNotMatch(publicQuery, /tokens\.length > 50/);
   assert.match(publicQuery, /data-batch-inbox-toggle/);
   assert.match(publicQuery, /batchInboxState\.expanded/);
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);

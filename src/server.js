@@ -16,10 +16,7 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const sessionHours = Number(process.env.SESSION_HOURS || 12);
-const queryLimit = Number(process.env.QUERY_LIMIT_PER_10_MINUTES || 30);
-const batchQueryLimit = Number(process.env.BATCH_QUERY_LIMIT_PER_10_MINUTES || 50);
 const loginLimit = Number(process.env.LOGIN_LIMIT_PER_15_MINUTES || 10);
-const queryFailureLimit = Number(process.env.QUERY_FAILURE_LIMIT_PER_15_MINUTES || 8);
 const mailPageSize = Math.max(1, Math.min(50, Number(process.env.MAIL_PAGE_SIZE || 20)));
 const loginFailureLimit = Number(process.env.LOGIN_FAILURE_LIMIT_PER_15_MINUTES || 5);
 const workerFreshSeconds = Math.max(90, Number(process.env.IMAP_POLL_SECONDS || 15) * 4);
@@ -198,6 +195,15 @@ async function findPublicAlias(token) {
     [digest(token)]
   );
   return result.rows[0] || null;
+}
+
+function normalizePublicToken(value) {
+  const input = String(value || '').trim();
+  if (!input) return '';
+  const direct = input.match(/^cv_[A-Za-z0-9_-]{17,197}$/);
+  if (direct) return direct[0];
+  const exported = input.match(/(?:^|--)\s*(cv_[A-Za-z0-9_-]{17,197})\s*$/);
+  return exported ? exported[1] : '';
 }
 
 function publicMailboxResponse(alias, stats, runtime) {
@@ -418,21 +424,11 @@ app.get('/admin', adminNetwork, adminPageAuth, (_req, res) => {
 app.post('/api/query', async (req, res, next) => {
   noStore(res);
   const ip = extractClientIp(req);
-  const limit = rateLimit(`query:${ip}`, queryLimit, 10 * 60 * 1000);
-  if (!limit.allowed) {
-    res.set('Retry-After', String(limit.retryAfter));
-    return res.status(429).json({ error: `请求过于频繁，请在 ${limit.retryAfter} 秒后重试` });
-  }
   try {
-    const failure = await failureGuard('query_failed', ip, queryFailureLimit);
-    if (!failure.allowed) {
-      res.set('Retry-After', String(failure.retryAfter));
-      return res.status(429).json({ error: `查询密钥连续错误次数过多，请在 ${failure.retryAfter} 秒后重试` });
-    }
-    const token = String(req.body.token || '').trim();
-    if (token.length < 20 || token.length > 200) {
+    const token = normalizePublicToken(req.body.token);
+    if (!token) {
       await audit({ actor: 'public', action: 'query_failed', ip, detail: 'invalid token format' });
-      return res.status(401).json({ error: '查询密钥无效或已失效' });
+      return res.status(401).json({ error: '查询密钥格式错误' });
     }
     const alias = await findPublicAlias(token);
     if (!alias) {
@@ -482,15 +478,10 @@ app.post('/api/query', async (req, res, next) => {
 app.post('/api/query/message', async (req, res, next) => {
   noStore(res);
   const ip = extractClientIp(req);
-  const limit = rateLimit(`query-message:${ip}`, queryLimit, 10 * 60 * 1000);
-  if (!limit.allowed) {
-    res.set('Retry-After', String(limit.retryAfter));
-    return res.status(429).json({ error: '请求过于频繁，请稍后重试' });
-  }
   try {
-    const token = String(req.body.token || '').trim();
+    const token = normalizePublicToken(req.body.token);
     const messageId = Number.parseInt(req.body.messageId, 10);
-    if (token.length < 20 || token.length > 200 || !Number.isSafeInteger(messageId) || messageId < 1) {
+    if (!token || !Number.isSafeInteger(messageId) || messageId < 1) {
       return res.status(400).json({ error: '查询参数无效' });
     }
     const alias = await findPublicAlias(token);
@@ -514,17 +505,7 @@ app.post('/api/query/message', async (req, res, next) => {
 app.post('/api/query/batch', async (req, res, next) => {
   noStore(res);
   const ip = extractClientIp(req);
-  const limit = rateLimit(`query-batch:${ip}`, batchQueryLimit, 10 * 60 * 1000);
-  if (!limit.allowed) {
-    res.set('Retry-After', String(limit.retryAfter));
-    return res.status(429).json({ error: `批量查询过于频繁，请在 ${limit.retryAfter} 秒后重试` });
-  }
   try {
-    const failure = await failureGuard('query_batch_failed', ip, queryFailureLimit);
-    if (!failure.allowed) {
-      res.set('Retry-After', String(failure.retryAfter));
-      return res.status(429).json({ error: `无效查询密钥过多，请在 ${failure.retryAfter} 秒后重试` });
-    }
     if (!Array.isArray(req.body.tokens) || !req.body.tokens.length) {
       return res.status(400).json({ error: '请至少输入一个查询密钥' });
     }
@@ -532,8 +513,8 @@ app.post('/api/query/batch', async (req, res, next) => {
       return res.status(400).json({ error: '每次最多查询 50 个密钥' });
     }
 
-    const tokens = req.body.tokens.map((value) => String(value || '').trim());
-    const tokenDigests = tokens.map((token) => token.length >= 20 && token.length <= 200 ? digest(token) : null);
+    const tokens = req.body.tokens.map(normalizePublicToken);
+    const tokenDigests = tokens.map((token) => token ? digest(token) : null);
     const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
     const matched = searchableDigests.length ? await pool.query(
        `SELECT a.id, a.token_digest,
@@ -553,6 +534,7 @@ app.post('/api/query/batch', async (req, res, next) => {
     const aliasesByDigest = new Map(matched.rows.map((row) => [row.token_digest, row]));
     const results = tokens.map((_token, index) => {
       const alias = aliasesByDigest.get(tokenDigests[index]);
+      if (!tokens[index]) return { index, status: 'invalid_format', message: null };
       if (!alias) return { index, status: 'invalid', message: null };
       const message = alias.message_id ? {
         id: alias.message_id,
@@ -569,7 +551,7 @@ app.post('/api/query/batch', async (req, res, next) => {
         message
       };
     });
-    const invalidCount = results.filter((item) => item.status === 'invalid').length;
+    const invalidCount = results.filter((item) => item.status === 'invalid' || item.status === 'invalid_format').length;
     await audit({
       actor: 'public',
       action: invalidCount === results.length ? 'query_batch_failed' : 'query_batch_success',
@@ -583,24 +565,14 @@ app.post('/api/query/batch', async (req, res, next) => {
 app.post('/api/query/batch-inbox', async (req, res, next) => {
   noStore(res);
   const ip = extractClientIp(req);
-  const limit = rateLimit(`query-batch-inbox:${ip}`, batchQueryLimit, 10 * 60 * 1000);
-  if (!limit.allowed) {
-    res.set('Retry-After', String(limit.retryAfter));
-    return res.status(429).json({ error: `鎵归噺鏀朵欢绠查询过于频繁，请在${limit.retryAfter}秒后重试` });
-  }
   try {
-    const failure = await failureGuard('query_batch_inbox_failed', ip, queryFailureLimit);
-    if (!failure.allowed) {
-      res.set('Retry-After', String(failure.retryAfter));
-      return res.status(429).json({ error: `无效查询密钥过多，请在${failure.retryAfter}秒后重试` });
-    }
     if (!Array.isArray(req.body.tokens) || !req.body.tokens.length) {
       return res.status(400).json({ error: '请至少输入一个查询密钥' });
     }
     if (req.body.tokens.length > 50) {
       return res.status(400).json({ error: '每次最多查询50个密钥' });
     }
-    const tokens = req.body.tokens.map((value) => String(value || '').trim());
+    const tokens = req.body.tokens.map(normalizePublicToken);
     const keyword = String(req.body.keyword || '').trim().slice(0, 120);
     const requestedLimit = Number.parseInt(req.body.limitPerMailbox, 10);
     const limitPerMailbox = Math.max(1, Math.min(50, requestedLimit || 20));
@@ -609,7 +581,7 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
     if (cursor.receivedAt && tokens.length !== 1) {
       return res.status(400).json({ error: '批量续页时每次只能加载一个邮箱' });
     }
-    const tokenDigests = tokens.map((token) => token.length >= 20 && token.length <= 200 ? digest(token) : null);
+    const tokenDigests = tokens.map((token) => token ? digest(token) : null);
     const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
     const matched = searchableDigests.length ? await pool.query(
       `SELECT a.id, a.address, a.token_digest,
@@ -679,6 +651,7 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
     const statsByAlias = new Map(statsRows.map((row) => [row.alias_id, row]));
     const results = tokens.map((_token, index) => {
       const alias = aliasesByDigest.get(tokenDigests[index]);
+      if (!tokens[index]) return { index, status: 'invalid_format', mailbox: null, messages: [], nextCursor: null };
       if (!alias) return { index, status: 'invalid', mailbox: null, messages: [], nextCursor: null };
       const stats = statsByAlias.get(alias.id) || {
         total_count: 0, matched_count: 0, latest_received_at: null
@@ -697,7 +670,7 @@ app.post('/api/query/batch-inbox', async (req, res, next) => {
         nextCursor: aliasMessageRows.length > limitPerMailbox && lastRow ? makePublicCursor(lastRow) : null
       };
     });
-    const invalidCount = results.filter((item) => item.status === 'invalid').length;
+    const invalidCount = results.filter((item) => item.status === 'invalid' || item.status === 'invalid_format').length;
     await audit({
       actor: 'public',
       action: invalidCount === results.length ? 'query_batch_inbox_failed' : 'query_batch_inbox_success',

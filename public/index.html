@@ -74,13 +74,13 @@
       </section>
 
       <section id="batch-view" class="public-page public-tool-view hidden" aria-labelledby="batch-title">
-        <header class="public-tool-head"><div><span class="pane-kicker">BATCH LOOKUP</span><h1 id="batch-title">批量查找验证码</h1><p>每行一个查询密钥，最多 50 个。等待中的结果会自动刷新。</p></div></header>
+        <header class="public-tool-head"><div><span class="pane-kicker">BATCH LOOKUP</span><h1 id="batch-title">批量查找验证码</h1><p>每行一个查询密钥，支持大量导入，系统每批查询 50 个。等待中的结果会自动刷新。</p></div></header>
         <div class="public-tool-layout">
           <form id="mail-batch-form" class="public-tool-form">
             <div class="field">
               <label for="mail-batch-tokens">查询密钥</label>
-              <textarea id="mail-batch-tokens" name="tokens" rows="10" maxlength="10100" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥"></textarea>
-              <div class="field-tools batch-field-tools"><small><span id="mail-batch-count">0</span> / 50 个密钥</small><small>结果每 15 秒自动刷新</small></div>
+              <textarea id="mail-batch-tokens" name="tokens" rows="10" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥或邮箱--密钥"></textarea>
+              <div class="field-tools batch-field-tools"><small><span id="mail-batch-count">0</span> 个密钥，每批 50 个</small><small>结果每 15 秒自动刷新</small></div>
             </div>
             <p id="mail-batch-error" class="message" role="alert"></p>
             <button class="btn btn-primary" type="submit"><i data-lucide="search-check" class="icon"></i><span>开始查询</span></button>
@@ -91,18 +91,18 @@
       </section>
 
       <section id="batch-inbox-view" class="public-page public-tool-view batch-inbox-view hidden" aria-labelledby="batch-inbox-title">
-        <header class="public-tool-head"><div><span class="pane-kicker">BATCH INBOX</span><h1 id="batch-inbox-title">批量收件箱</h1><p>最多导入 50 个查询密钥，按邮箱分组查看最近 7 天邮件。</p></div></header>
+        <header class="public-tool-head"><div><span class="pane-kicker">BATCH INBOX</span><h1 id="batch-inbox-title">批量收件箱</h1><p>支持大量导入查询密钥，系统每批查询 50 个，按邮箱分组查看最近 7 天邮件。</p></div></header>
         <div class="public-tool-layout public-tool-layout-inbox">
           <form id="batch-inbox-form" class="public-tool-form batch-inbox-form">
             <div class="field">
               <label for="batch-inbox-tokens">查询密钥</label>
-              <textarea id="batch-inbox-tokens" name="tokens" rows="8" maxlength="10100" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥"></textarea>
-              <div class="field-tools batch-field-tools"><small><span id="batch-inbox-count">0</span> / 50 个密钥</small><small>密钥仅保留在当前页面内存中</small></div>
+              <textarea id="batch-inbox-tokens" name="tokens" rows="8" autocomplete="off" spellcheck="false" required placeholder="每行粘贴一个 cv_ 查询密钥或邮箱--密钥"></textarea>
+              <div class="field-tools batch-field-tools"><small><span id="batch-inbox-count">0</span> 个密钥，每批 50 个</small><small>支持 cv_ 密钥或邮箱--密钥格式</small></div>
             </div>
             <p id="batch-inbox-error" class="message" role="alert"></p>
             <button class="btn btn-primary" type="submit"><i data-lucide="inbox" class="icon"></i><span>打开批量收件箱</span></button>
           </form>
-          <div id="batch-inbox-placeholder" class="public-tool-placeholder"><i data-lucide="inbox"></i><strong>邮箱会按地址分组显示</strong><span>导入最多 50 个查询密钥，查看每个邮箱最近 7 天的邮件。</span></div>
+          <div id="batch-inbox-placeholder" class="public-tool-placeholder"><i data-lucide="inbox"></i><strong>邮箱会按地址分组显示</strong><span>支持大量导入，查看每个邮箱最近 7 天的邮件。</span></div>
           <section id="batch-inbox-result" class="batch-inbox-result hidden" aria-live="polite">
             <div id="batch-inbox-summary" class="batch-inbox-summary"></div>
             <div class="batch-inbox-toolbar">
@@ -149,6 +149,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/query.js?v=20260810-21"></script>
+  <script src="/assets/query.js?v=20260810-22"></script>
 </body>
 </html>

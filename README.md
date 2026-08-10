@@ -16,7 +16,7 @@
 - 管理员重新验证登录密码后，可按需查看和复制邮箱授权密码
 - 多母邮箱、多子邮箱管理
 - 母邮箱、子邮箱地址与备注、查询密钥有效期、2FA 平台与账号备注均可编辑
-- 子邮箱搜索、批量导入、`邮箱--密钥` 格式导出和最多 50 个邮箱的批量验证码查询
+- 子邮箱搜索、批量导入、`邮箱--密钥` 格式导出和大批量验证码查询；前端自动按每批 50 个连续查询
 - 单个查询可查看最近 7 天文本邮件或筛选有效验证码；批量验证码查询返回每个邮箱的最新有效验证码
 - 每个子邮箱独立高强度查询密钥，数据库保存用于验证的 HMAC 摘要和管理员查看所需的 AES-256-GCM 加密副本
 - 管理员重新输入当前登录密码后，可按需查看查询密钥、2FA 手动密钥和当前动态码
@@ -26,7 +26,7 @@
 - 按原始邮件头识别 `To`、`Delivered-To`、`X-Original-To` 等位置中的子邮箱
 - 子邮箱邮件信息加密保存 7 天，并显示完整邮箱地址、发件人、主题、接收时间和邮件信息
 - 中文和英文验证码提取、短期有效及自动清理
-- 查询 IP 限流、管理员审计、未匹配邮件检查
+- 管理员登录限流、管理员审计、未匹配邮件检查
 - PostgreSQL 持久化、自动备份与保留策略、Caddy 自动 HTTPS、Docker Compose 一键运行
 - Docker 日志轮转、更新前备份、健康检查和失败回滚
 
@@ -214,10 +214,7 @@ docker compose -f compose.production.yaml run --rm backup sh /usr/local/bin/back
 | `MAX_MESSAGE_BYTES` | `1048576` | 单封邮件最多读取字节数，防止大附件占用内存 |
 | `MAX_BODY_CHARS` | `200000` | 单封邮件最多保存的邮件信息字符数 |
 | `SESSION_HOURS` | `12` | 管理员登录会话时长 |
-| `QUERY_LIMIT_PER_10_MINUTES` | `30` | 单 IP 每十分钟查询上限 |
-| `BATCH_QUERY_LIMIT_PER_10_MINUTES` | `50` | 单 IP 每十分钟批量查询请求上限 |
 | `LOGIN_LIMIT_PER_15_MINUTES` | `10` | 单 IP 每十五分钟登录尝试上限 |
-| `QUERY_FAILURE_LIMIT_PER_15_MINUTES` | `8` | 单 IP 连续错误查询的持久限制 |
 | `LOGIN_FAILURE_LIMIT_PER_15_MINUTES` | `5` | 单 IP 连续密码错误的持久限制 |
 | `UNMATCHED_RETENTION_DAYS` | `14` | 未匹配邮件元数据保留天数 |
 | `AUDIT_RETENTION_DAYS` | `90` | 审计日志保留天数 |
