@@ -22,7 +22,8 @@ test('matched mail stores encrypted plain text for seven days without attachment
   assert.match(schema, /body_sync_completed_at TIMESTAMPTZ/);
   assert.match(worker, /MAIL_RETENTION_DAYS \|\| 7/);
   assert.match(worker, /MAX_BODY_CHARS \|\| 200000/);
-  assert.match(worker, /skipHtmlToText: false/);
+  assert.match(worker, /skipHtmlToText: true/);
+  assert.match(worker, /extractBodyText\(parsed\.text, parsed\.html\)/);
   assert.match(worker, /bodyText \? encrypt\(bodyText\) : null/);
   assert.match(worker, /client\.search\(\{ since \}, \{ uid: true \}\)/);
   assert.match(worker, /body_sync_completed_at = COALESCE\(body_sync_completed_at, NOW\(\)\)/);
@@ -64,7 +65,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.doesNotMatch(listRoute, /body_text_encrypted:/);
   assert.match(bodyRoute, /WHERE id = \$1 AND alias_id = \$2 AND mail_expires_at > NOW\(\)/);
   assert.match(bodyRoute, /body_text_encrypted/);
-  assert.match(bodyRoute, /message\.body = decrypt\(row\.body_text_encrypted\)/);
+  assert.match(bodyRoute, /message\.body = extractBodyText\(decrypt\(row\.body_text_encrypted\), ''\)/);
   assert.doesNotMatch(bodyRoute, /query_message_blocked|status\(403\)|verificationModeEnabled/);
   assert.doesNotMatch(bodyRoute, /rateLimit\(|failureGuard\(/);
   assert.doesNotMatch(bodyRoute, /token_encrypted/);

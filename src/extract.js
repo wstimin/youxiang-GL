@@ -1,10 +1,83 @@
 'use strict';
 
-function normalizeText(value) {
+const { compile } = require('html-to-text');
+
+const convertHtml = compile({
+  wordwrap: false,
+  selectors: [
+    { selector: 'head', format: 'skip' },
+    { selector: 'style', format: 'skip' },
+    { selector: 'script', format: 'skip' },
+    { selector: 'noscript', format: 'skip' },
+    { selector: 'template', format: 'skip' },
+    { selector: 'svg', format: 'skip' },
+    { selector: 'canvas', format: 'skip' },
+    { selector: 'iframe', format: 'skip' },
+    { selector: 'object', format: 'skip' },
+    { selector: 'img', format: 'skip' },
+    { selector: 'picture', format: 'skip' },
+    { selector: 'video', format: 'skip' },
+    { selector: 'audio', format: 'skip' },
+    { selector: 'source', format: 'skip' },
+    { selector: 'form', format: 'skip' },
+    { selector: '[hidden]', format: 'skip' },
+    { selector: '[aria-hidden="true"]', format: 'skip' },
+    { selector: 'a', format: 'inline' },
+    { selector: 'h1', options: { uppercase: false } },
+    { selector: 'h2', options: { uppercase: false } },
+    { selector: 'h3', options: { uppercase: false } },
+    { selector: 'h4', options: { uppercase: false } },
+    { selector: 'h5', options: { uppercase: false } },
+    { selector: 'h6', options: { uppercase: false } }
+  ],
+  limits: {
+    maxDepth: 60,
+    maxChildNodes: 10000,
+    maxInputLength: 500000
+  }
+});
+
+function cleanPlainText(value) {
   return String(value || '')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[\t\f\v]+/g, ' ')
+    .replace(/ +\n/g, '\n')
+    .replace(/\n +/g, '\n')
+    .replace(/ {2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function looksLikeHtml(value) {
+  return /<\s*(?:!doctype|html|head|body|title|meta|link|style|script|table|thead|tbody|tr|td|div|p|span|br|a|img|section|article|header|footer|h[1-6]|ul|ol|li)\b/i
+    .test(String(value || ''));
+}
+
+function htmlToVisibleText(value) {
+  const source = String(value || '').trim();
+  if (!source) return '';
+  try {
+    return cleanPlainText(convertHtml(source));
+  } catch (_error) {
+    return cleanPlainText(source
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' '));
+  }
+}
+
+function extractBodyText(text, html) {
+  const textSource = String(text || '').trim();
+  if (textSource) {
+    return looksLikeHtml(textSource) ? htmlToVisibleText(textSource) : cleanPlainText(textSource);
+  }
+
+  return htmlToVisibleText(html);
+}
+
+function normalizeText(value) {
+  return extractBodyText(value, '')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/\s+/g, ' ')
@@ -41,4 +114,4 @@ function findAlias(rawHeaders, aliases) {
   }) || null;
 }
 
-module.exports = { extractCode, findAlias, normalizeText };
+module.exports = { extractBodyText, extractCode, findAlias, normalizeText };

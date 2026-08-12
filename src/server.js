@@ -7,6 +7,7 @@ const { ImapFlow } = require('imapflow');
 const QRCode = require('qrcode');
 const { authenticator } = require('otplib');
 const { parseTotpInput, generateTotp } = require('./totp');
+const { extractBodyText } = require('./extract');
 const {
   pool, initDatabase, randomToken, digest, encrypt, decrypt, hashPassword,
   verifyPassword, normalizeEmail, validEmail, extractClientIp,
@@ -139,7 +140,7 @@ function adminMailMessageResponse(row) {
     sender: row.sender,
     recipients: decrypt(row.recipients_encrypted) || '',
     subject: row.subject,
-    body: decrypt(row.body_text_encrypted) || '',
+    body: extractBodyText(decrypt(row.body_text_encrypted), ''),
     receivedAt: row.received_at
   };
 }
@@ -230,8 +231,8 @@ function mailMessageResponse(message, includeBody = false) {
     folders: Array.isArray(message.mailbox_paths) ? message.mailbox_paths : [],
     sender: message.sender,
     subject: message.subject,
-    body: includeBody ? decrypt(message.body_text_encrypted) : null,
-    bodyPreview: message.body_preview || '',
+    body: includeBody ? extractBodyText(decrypt(message.body_text_encrypted), '') : null,
+    bodyPreview: extractBodyText(message.body_preview, ''),
     code: codeActive ? decrypt(message.code_encrypted) : null,
     codeMasked: codeActive ? message.code_masked : null,
     confidence: message.confidence,
@@ -246,7 +247,7 @@ function publicMailMessageResponse(message) {
     id: message.id,
     sender: message.sender,
     subject: message.subject,
-    bodyPreview: message.body_preview || '',
+    bodyPreview: extractBodyText(message.body_preview, ''),
     receivedAt: message.received_at
   };
 }
@@ -509,7 +510,7 @@ app.post('/api/query/message', async (req, res, next) => {
     await audit({ actor: `alias:${alias.id}`, action: 'query_message_success', target: String(messageId), ip });
     const row = result.rows[0];
     const message = publicMailMessageResponse(row);
-    message.body = decrypt(row.body_text_encrypted) || '';
+    message.body = extractBodyText(decrypt(row.body_text_encrypted), '');
     return res.json({ message });
   } catch (error) { next(error); }
 });

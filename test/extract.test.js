@@ -2,7 +2,38 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractCode, findAlias } = require('../src/extract');
+const { extractBodyText, extractCode, findAlias } = require('../src/extract');
+
+test('extracts readable text from an HTML email without code or styling', () => {
+  const html = `<!doctype html><html><head>
+    <style>.code { color: red; }</style>
+    <script>window.location = 'https://example.com';</script>
+  </head><body>
+    <h1>Security notice</h1>
+    <p>Your verification code is <strong>483921</strong>.</p>
+    <a href="https://example.com/track?id=123">Review activity</a>
+  </body></html>`;
+
+  const body = extractBodyText('', html);
+  assert.match(body, /Security notice/);
+  assert.match(body, /Your verification code is 483921\./);
+  assert.match(body, /Review activity/);
+  assert.doesNotMatch(body, /<html|<style|color:\s*red|window\.location|track\?id=/i);
+});
+
+test('cleans HTML source mislabeled as a plain text email', () => {
+  const body = extractBodyText(
+    '<style>body{font-family:sans-serif}</style><div>Hello</div><p>Code: <b>A7K9P2</b></p>',
+    ''
+  );
+  assert.match(body, /Hello/);
+  assert.match(body, /Code: A7K9P2/);
+  assert.doesNotMatch(body, /font-family|<div>|<b>/);
+});
+
+test('keeps readable plain text and useful line breaks', () => {
+  assert.equal(extractBodyText('Hello\r\n\r\nCode: 123456\r\n', ''), 'Hello\n\nCode: 123456');
+});
 
 test('extracts Chinese verification code', () => {
   assert.deepEqual(extractCode('', '你的验证码是：483921，十分钟内有效。', ''), {

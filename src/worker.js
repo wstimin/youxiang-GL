@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const { pool, initDatabase, decrypt, encrypt, cleanExpired, updateRuntimeStatus } = require('./lib');
-const { extractCode, findAlias, normalizeText } = require('./extract');
+const { extractBodyText, extractCode, findAlias } = require('./extract');
 
 const pollSeconds = Math.max(5, Number(process.env.IMAP_POLL_SECONDS || 15));
 const codeTtlMinutes = Math.max(1, Math.min(60, Number(process.env.CODE_TTL_MINUTES || 10)));
@@ -93,7 +93,7 @@ function mergeMailboxPaths(tableName) {
 async function processMessage(account, folder, message, aliases, uidValidity) {
   if (!message.source) return;
   const parsed = await simpleParser(message.source, {
-    skipHtmlToText: false,
+    skipHtmlToText: true,
     skipTextToHtml: true,
     maxHtmlLengthToParse: 200000
   });
@@ -104,8 +104,8 @@ async function processMessage(account, folder, message, aliases, uidValidity) {
   const sender = senderText(parsed).slice(0, 500);
   const recipients = recipientText(parsed).slice(0, 2000);
   const subject = String(parsed.subject || '').slice(0, 500);
-  const bodyText = String(parsed.text || normalizeText(parsed.html) || '').slice(0, maxBodyChars);
-  const extracted = extractCode(subject, parsed.text, parsed.html);
+  const bodyText = extractBodyText(parsed.text, parsed.html).slice(0, maxBodyChars);
+  const extracted = extractCode(subject, bodyText, '');
   const expiresAt = new Date(receivedAt.getTime() + codeTtlMinutes * 60 * 1000);
   const mailExpiresAt = new Date(receivedAt.getTime() + mailRetentionDays * 24 * 60 * 60 * 1000);
 

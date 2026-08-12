@@ -117,7 +117,7 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.doesNotMatch(detailRoute, /recipients_encrypted|recipients\s*=/);
   assert.doesNotMatch(listRoute, /decrypt\(message\.code_encrypted\)|code:\s*codeActive/);
   assert.doesNotMatch(detailRoute, /message\.code|decrypt\(row\.code_encrypted\)|codeMasked|confidence/);
-  assert.match(detailRoute, /message\.body = decrypt\(row\.body_text_encrypted\)/);
+  assert.match(detailRoute, /message\.body = extractBodyText\(decrypt\(row\.body_text_encrypted\), ''\)/);
   const batchRoute = server.slice(
     server.indexOf("app.post('/api/query/batch'"),
     server.indexOf("app.post('/api/query/batch-inbox'")
