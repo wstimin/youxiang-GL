@@ -10,7 +10,7 @@ const schema = fs.readFileSync('src/schema.sql', 'utf8');
 const admin = fs.readFileSync('public/admin.js', 'utf8');
 const publicQuery = fs.readFileSync('public/query.js', 'utf8');
 
-test('backend mail account imports allow 10 while alias imports allow 100', () => {
+test('mail account imports allow 10 while alias imports allow 100', () => {
   const accountImport = server.slice(
     server.indexOf("app.post('/api/admin/mail-accounts/import'"),
     server.indexOf("app.get('/api/admin/mail-import-jobs/:id'")
@@ -22,7 +22,7 @@ test('backend mail account imports allow 10 while alias imports allow 100', () =
 
   assert.match(accountImport, /requested\.length > 10/);
   assert.match(aliasImport, /requested\.length > 100/);
-  assert.match(admin, /accounts\.length > 100/);
+  assert.match(admin, /accounts\.length > 10/);
   assert.match(admin, /aliases\.length > 100/);
 });
 
@@ -151,6 +151,8 @@ test('batch inbox searches seven-day mail in a three-pane workspace by full mail
   assert.doesNotMatch(batchInboxRoute, /body_text_encrypted|recipients_encrypted|token_encrypted/);
   assert.match(html, /data-public-view="batch-inbox"/);
   assert.match(html, /id="batch-inbox-search"/);
+  assert.match(html, /class="batch-inbox-toolbar">[\s\S]*?id="batch-inbox-summary"[\s\S]*?id="batch-inbox-search"[\s\S]*?id="refresh-batch-inbox"[\s\S]*?id="reimport-batch-inbox"/);
+  assert.match(html, /id="batch-inbox-status" class="public-list-status sr-only"/);
   assert.doesNotMatch(html, /验证码方式/);
   assert.match(html, /id="batch-inbox-workspace"/);
   assert.match(html, /id="batch-inbox-mailboxes"/);
@@ -177,6 +179,8 @@ test('batch inbox searches seven-day mail in a three-pane workspace by full mail
   assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|data-copy-detail-code|纯文本正文/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
   assert.match(styles, /\.batch-inbox-workspace \{[^}]*grid-template-columns: minmax\(230px, \.65fr\) minmax\(320px, \.9fr\) minmax\(420px, 1\.45fr\)/);
+  assert.match(styles, /\.batch-inbox-toolbar \{[^}]*grid-template-columns: auto minmax\(300px, 1fr\) auto/);
+  assert.match(styles, /\.batch-inbox-view > \.public-tool-head \{ min-height: 47px;/);
   assert.match(styles, /\.batch-inbox-workspace\.show-detail \.batch-inbox-message-detail/);
   assert.match(styles, /\.public-nav \{ min-width: 0; display: flex;[\s\S]*?overflow-x: auto;/);
 });

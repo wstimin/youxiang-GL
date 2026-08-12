@@ -750,7 +750,7 @@ document.querySelector('#revoke-other-sessions').addEventListener('click', async
 
 document.querySelector('#import-accounts').addEventListener('click', () => {
   clearTimeout(state.importPollTimer);
-  openModal('批量接入母邮箱', `<form id="account-import-form"><div class="field"><label for="account-import-lines">CSV 账户列表</label><textarea id="account-import-lines" rows="12" required spellcheck="false" placeholder="email,provider,password&#10;account1@icloud.com,icloud,xxxx-xxxx-xxxx-xxxx&#10;account2@gmail.com,gmail,abcdefghijklmnop"></textarea><div class="field-tools"><small><span id="account-import-count">0</span> / 100 个邮箱</small><small>支持 iCloud、Gmail、Outlook，可留空 provider 自动识别</small></div></div><p class="muted compact-note">前端只做格式预检，实际登录验证和最近 7 天首次同步由后台异步执行。凭据加密保存，接口不会再次明文返回。</p><p id="modal-error" class="message"></p><div id="account-import-progress"></div><div id="account-import-actions" class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="upload" class="icon"></i><span>确认导入</span></button></div></form>`);
+  openModal('批量接入母邮箱', `<form id="account-import-form"><div class="field"><label for="account-import-lines">CSV 账户列表</label><textarea id="account-import-lines" rows="12" required spellcheck="false" placeholder="email,provider,password&#10;account1@icloud.com,icloud,xxxx-xxxx-xxxx-xxxx&#10;account2@gmail.com,gmail,abcdefghijklmnop"></textarea><div class="field-tools"><small><span id="account-import-count">0</span> / 10 个母邮箱</small><small>支持 iCloud、Gmail、Outlook，可留空 provider 自动识别</small></div></div><p class="muted compact-note">前端只做格式预检，实际登录验证和最近 7 天首次同步由后台异步执行。凭据加密保存，接口不会再次明文返回。</p><p id="modal-error" class="message"></p><div id="account-import-progress"></div><div id="account-import-actions" class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="upload" class="icon"></i><span>确认导入</span></button></div></form>`);
   const textarea = document.querySelector('#account-import-lines');
   const count = document.querySelector('#account-import-count');
   document.querySelector('[data-cancel]').addEventListener('click', () => {
@@ -760,7 +760,7 @@ document.querySelector('#import-accounts').addEventListener('click', () => {
   textarea.addEventListener('input', () => {
     const total = parseAccountImportText(textarea.value).length;
     count.textContent = String(total);
-    count.parentElement.classList.toggle('danger-text', total > 100);
+    count.parentElement.classList.toggle('danger-text', total > 10);
   });
   document.querySelector('#account-import-form').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -768,7 +768,7 @@ document.querySelector('#import-accounts').addEventListener('click', () => {
     const errorBox = document.querySelector('#modal-error');
     errorBox.textContent = '';
     if (!accounts.length) return void (errorBox.textContent = '请至少填写一个邮箱账户');
-    if (accounts.length > 100) return void (errorBox.textContent = '每次最多批量导入 100 个邮箱');
+    if (accounts.length > 10) return void (errorBox.textContent = '每次最多批量导入 10 个母邮箱');
     const invalid = accounts.find((item) => !item.email.includes('@') || item.password.length < 8);
     if (invalid) return void (errorBox.textContent = `请检查 ${invalid.email || '空邮箱'} 的邮箱格式和授权密码`);
     const button = event.currentTarget.querySelector('[type="submit"]');

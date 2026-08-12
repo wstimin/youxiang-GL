@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>只读邮件中心</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260812-25">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260812-26">
 </head>
 <body class="public-shell public-app-open">
   <main class="public-main">
@@ -104,15 +104,15 @@
           </form>
           <div id="batch-inbox-placeholder" class="public-tool-placeholder"><i data-lucide="inbox"></i><strong>邮箱会按地址分组显示</strong><span>支持大量导入，查看每个邮箱最近 7 天的邮件。</span></div>
           <section id="batch-inbox-result" class="batch-inbox-result hidden" aria-live="polite">
-            <div id="batch-inbox-summary" class="batch-inbox-summary"></div>
             <div class="batch-inbox-toolbar">
+              <div id="batch-inbox-summary" class="batch-inbox-summary"></div>
               <div class="batch-inbox-search"><i data-lucide="search" class="icon"></i><input id="batch-inbox-search" type="search" maxlength="120" autocomplete="off" placeholder="搜索发件人、主题或邮件内容"><button id="clear-batch-inbox-search" class="hidden" type="button" title="清除搜索" aria-label="清除搜索"><i data-lucide="x"></i></button></div>
               <div class="batch-inbox-actions">
                 <button id="refresh-batch-inbox" class="btn btn-secondary btn-icon" type="button" title="刷新全部邮箱" aria-label="刷新全部邮箱"><i data-lucide="refresh-cw" class="icon"></i></button>
                 <button id="reimport-batch-inbox" class="btn btn-secondary" type="button"><i data-lucide="key-round" class="icon"></i><span>重新导入</span></button>
               </div>
             </div>
-            <p id="batch-inbox-status" class="public-list-status" role="status"></p>
+            <p id="batch-inbox-status" class="public-list-status sr-only" role="status"></p>
             <div id="batch-inbox-workspace" class="batch-inbox-workspace">
               <aside class="batch-inbox-pane batch-inbox-mailbox-pane">
                 <header class="batch-inbox-pane-head"><div><span class="pane-kicker">MAILBOXES</span><strong>邮箱</strong></div></header>
