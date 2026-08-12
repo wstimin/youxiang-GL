@@ -22,6 +22,14 @@ const convertHtml = compile({
     { selector: 'form', format: 'skip' },
     { selector: '[hidden]', format: 'skip' },
     { selector: '[aria-hidden="true"]', format: 'skip' },
+    { selector: '[style*="display:none"]', format: 'skip' },
+    { selector: '[style*="display: none"]', format: 'skip' },
+    { selector: '[style*="visibility:hidden"]', format: 'skip' },
+    { selector: '[style*="visibility: hidden"]', format: 'skip' },
+    { selector: '[style*="opacity:0"]', format: 'skip' },
+    { selector: '[style*="opacity: 0"]', format: 'skip' },
+    { selector: '[style*="font-size:0"]', format: 'skip' },
+    { selector: '[style*="font-size: 0"]', format: 'skip' },
     { selector: 'a', format: 'inline' },
     { selector: 'h1', options: { uppercase: false } },
     { selector: 'h2', options: { uppercase: false } },
@@ -68,12 +76,14 @@ function htmlToVisibleText(value) {
 }
 
 function extractBodyText(text, html) {
-  const textSource = String(text || '').trim();
-  if (textSource) {
-    return looksLikeHtml(textSource) ? htmlToVisibleText(textSource) : cleanPlainText(textSource);
+  const htmlSource = String(html || '').trim();
+  if (htmlSource) {
+    const visibleHtmlText = htmlToVisibleText(htmlSource);
+    if (visibleHtmlText) return visibleHtmlText;
   }
 
-  return htmlToVisibleText(html);
+  const textSource = String(text || '').trim();
+  return looksLikeHtml(textSource) ? htmlToVisibleText(textSource) : cleanPlainText(textSource);
 }
 
 function normalizeText(value) {

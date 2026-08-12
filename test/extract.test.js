@@ -35,6 +35,31 @@ test('keeps readable plain text and useful line breaks', () => {
   assert.equal(extractBodyText('Hello\r\n\r\nCode: 123456\r\n', ''), 'Hello\n\nCode: 123456');
 });
 
+test('prefers the visible HTML body over a link-heavy plain text alternative', () => {
+  const text = `Verify your account\n\nContinue: https://accounts.example.com/verify?token=very-long-tracking-token\n\nPrivacy: https://example.com/privacy\nUnsubscribe: https://example.com/unsubscribe`;
+  const html = `<html><body>
+    <div style="display:none">Hidden preview and tracking copy</div>
+    <h1>Verify your account</h1>
+    <p>Your verification code is <strong>381624</strong>.</p>
+    <a href="https://accounts.example.com/verify?token=very-long-tracking-token">Continue</a>
+    <img src="https://example.com/tracking.gif" alt="tracking pixel">
+  </body></html>`;
+
+  const body = extractBodyText(text, html);
+  assert.match(body, /Verify your account/);
+  assert.match(body, /Your verification code is 381624\./);
+  assert.match(body, /Continue/);
+  assert.doesNotMatch(body, /https?:\/\/|Hidden preview|tracking pixel|Privacy|Unsubscribe/i);
+});
+
+test('falls back to plain text when an HTML alternative has no visible text', () => {
+  const body = extractBodyText(
+    'Your verification code is 264813.',
+    '<html><body><img src="https://example.com/message.png" alt=""></body></html>'
+  );
+  assert.equal(body, 'Your verification code is 264813.');
+});
+
 test('extracts Chinese verification code', () => {
   assert.deepEqual(extractCode('', '你的验证码是：483921，十分钟内有效。', ''), {
     code: '483921', confidence: 100
