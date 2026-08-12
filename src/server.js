@@ -500,7 +500,7 @@ app.post('/api/query/message', async (req, res, next) => {
     const alias = await findPublicAlias(token);
     if (!alias) return res.status(401).json({ error: '查询密钥无效或已失效' });
     const result = await pool.query(
-      `SELECT id, sender, subject, body_text_encrypted,
+      `SELECT id, sender, recipients_encrypted, subject, body_text_encrypted,
               body_preview, received_at
        FROM mail_messages
        WHERE id = $1 AND alias_id = $2 AND mail_expires_at > NOW()`,
@@ -510,6 +510,7 @@ app.post('/api/query/message', async (req, res, next) => {
     await audit({ actor: `alias:${alias.id}`, action: 'query_message_success', target: String(messageId), ip });
     const row = result.rows[0];
     const message = publicMailMessageResponse(row);
+    message.recipients = decrypt(row.recipients_encrypted) || alias.address;
     message.body = extractBodyText(decrypt(row.body_text_encrypted), '');
     return res.json({ message });
   } catch (error) { next(error); }
