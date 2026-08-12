@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractBodyText, extractCode, findAlias } = require('../src/extract');
+const { extractBodyText, extractCode, findAlias, publicSenderText } = require('../src/extract');
 
 test('extracts readable text from an HTML email without code or styling', () => {
   const html = `<!doctype html><html><head>
@@ -58,6 +58,18 @@ test('falls back to plain text when an HTML alternative has no visible text', ()
     '<html><body><img src="https://example.com/message.png" alt=""></body></html>'
   );
   assert.equal(body, 'Your verification code is 264813.');
+});
+
+test('shows the sender name and restores an iCloud relay sender address', () => {
+  assert.equal(
+    publicSenderText('"YIKA" <no-reply_at_yikahk_com_ypbhd135znkkc1_fa4j4829@icloud.com>'),
+    'YIKA <no-reply@yikahk.com>'
+  );
+});
+
+test('keeps ordinary sender names and addresses intact', () => {
+  assert.equal(publicSenderText('Google <no-reply@google.com>'), 'Google <no-reply@google.com>');
+  assert.equal(publicSenderText('no-reply@google.com'), 'no-reply@google.com');
 });
 
 test('extracts Chinese verification code', () => {

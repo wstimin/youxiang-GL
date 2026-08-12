@@ -86,6 +86,29 @@ function extractBodyText(text, html) {
   return looksLikeHtml(textSource) ? htmlToVisibleText(textSource) : cleanPlainText(textSource);
 }
 
+function decodeIcloudRelayAddress(address) {
+  const source = String(address || '').trim();
+  const match = source.match(/^(.+)_at_(.+)_([a-z0-9]+)_([a-z0-9]+)@icloud\.com$/i);
+  if (!match) return source;
+  const localPart = match[1];
+  const domain = match[2].replace(/_/g, '.');
+  if (!localPart || !domain.includes('.') || !/^[a-z0-9.-]+$/i.test(domain)) return source;
+  return `${localPart}@${domain}`;
+}
+
+function publicSenderText(value) {
+  const source = String(value || '').trim();
+  const namedAddress = source.match(/^\s*("(?:[^"\\]|\\.)*"|[^<]+?)\s*<\s*([^>]+)\s*>\s*$/);
+  if (!namedAddress) return decodeIcloudRelayAddress(source);
+  const name = namedAddress[1]
+    .trim()
+    .replace(/^"|"$/g, '')
+    .replace(/\\(["\\])/g, '$1')
+    .trim();
+  const address = decodeIcloudRelayAddress(namedAddress[2]);
+  return name ? `${name} <${address}>` : address;
+}
+
 function normalizeText(value) {
   return extractBodyText(value, '')
     .replace(/&nbsp;/gi, ' ')
@@ -124,4 +147,4 @@ function findAlias(rawHeaders, aliases) {
   }) || null;
 }
 
-module.exports = { extractBodyText, extractCode, findAlias, normalizeText };
+module.exports = { extractBodyText, extractCode, findAlias, normalizeText, publicSenderText };

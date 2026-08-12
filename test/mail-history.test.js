@@ -65,8 +65,7 @@ test('single-token query lists scoped mail and protects full body lookup', () =>
   assert.doesNotMatch(listRoute, /body_text_encrypted:/);
   assert.match(bodyRoute, /WHERE id = \$1 AND alias_id = \$2 AND mail_expires_at > NOW\(\)/);
   assert.match(bodyRoute, /body_text_encrypted/);
-  assert.match(bodyRoute, /recipients_encrypted/);
-  assert.match(bodyRoute, /message\.recipients = decrypt\(row\.recipients_encrypted\) \|\| alias\.address/);
+  assert.doesNotMatch(bodyRoute, /recipients_encrypted|message\.recipients/);
   assert.match(bodyRoute, /message\.body = extractBodyText\(decrypt\(row\.body_text_encrypted\), ''\)/);
   assert.doesNotMatch(bodyRoute, /query_message_blocked|status\(403\)|verificationModeEnabled/);
   assert.doesNotMatch(bodyRoute, /rateLimit\(|failureGuard\(/);
@@ -86,8 +85,9 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /limit: 40/);
   assert.match(script, /request\('\/api\/query\/message'/);
   assert.match(script, /querySelector\('\.public-detail-body'\)\.textContent = detail\.body/);
-  assert.match(script, /<dt>收件人<\/dt>/);
-  assert.match(script, /detail\.recipients/);
+  assert.doesNotMatch(script, /<dt>收件人<\/dt>|detail\.recipients/);
+  assert.match(server, /extractBodyText, publicSenderText/);
+  assert.match(server, /sender: publicSenderText\(message\.sender\)/);
   assert.match(script, /newMailBanner/);
   assert.match(script, /mailboxAddress/);
   assert.match(script, /scheduleMailRefresh/);

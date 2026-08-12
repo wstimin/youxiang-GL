@@ -382,7 +382,6 @@ async function openMailMessage(message, button) {
     </header>
     <dl class="public-detail-meta">
       <div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div>
-      <div><dt>收件人</dt><dd>${escapeHtml(detail.recipients || '未知收件人')}</dd></div>
       <div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div>
     </dl>
     <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件内容</span></div><pre class="public-detail-body"></pre></section>`;
@@ -586,7 +585,7 @@ async function openBatchInboxMessage(index, message) {
   try {
     const data = await request('/api/query/message', { token, messageId: Number(message.id) });
     const detail = data.message;
-    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>收件人</dt><dd>${escapeHtml(detail.recipients || '未知收件人')}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件内容</span></div><pre class="public-detail-body"></pre></section>`;
+    batchInboxDetailContent.innerHTML = `<header class="batch-inbox-detail-head"><div><span class="pane-kicker">MESSAGE</span><h1>${escapeHtml(detail.subject || '无主题')}</h1></div><button class="btn btn-secondary btn-icon" type="button" data-close-batch-detail title="关闭邮件" aria-label="关闭邮件"><i data-lucide="x" class="icon"></i></button></header><dl class="public-detail-meta"><div><dt>发件人</dt><dd>${escapeHtml(detail.sender || '未知发件人')}</dd></div><div><dt>收到时间</dt><dd>${escapeHtml(formatMailDate(detail.receivedAt, true))}</dd></div></dl><section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件内容</span></div><pre class="public-detail-body"></pre></section>`;
     batchInboxDetailContent.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的内容。';
     batchInboxDetailContent.querySelector('[data-close-batch-detail]').addEventListener('click', () => batchInboxDetail.close());
     renderIcons();

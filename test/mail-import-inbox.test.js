@@ -114,8 +114,7 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(detailRoute, /body_text_encrypted/);
   assert.doesNotMatch(publicSurface, /母邮箱|子邮箱|归属邮箱|邮箱树|服务商|IMAP|mailAccountId|mail_account_id|provider|import job|同步状态|登录失败|网络超时/);
   assert.doesNotMatch(listRoute, /alias:\s*alias|address:\s*alias|label:\s*alias/);
-  assert.match(detailRoute, /recipients_encrypted/);
-  assert.match(detailRoute, /message\.recipients = decrypt\(row\.recipients_encrypted\) \|\| alias\.address/);
+  assert.doesNotMatch(detailRoute, /recipients_encrypted|message\.recipients/);
   assert.doesNotMatch(listRoute, /decrypt\(message\.code_encrypted\)|code:\s*codeActive/);
   assert.doesNotMatch(detailRoute, /message\.code|decrypt\(row\.code_encrypted\)|codeMasked|confidence/);
   assert.match(detailRoute, /message\.body = extractBodyText\(decrypt\(row\.body_text_encrypted\), ''\)/);
