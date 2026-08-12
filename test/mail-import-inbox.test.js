@@ -10,7 +10,7 @@ const schema = fs.readFileSync('src/schema.sql', 'utf8');
 const admin = fs.readFileSync('public/admin.js', 'utf8');
 const publicQuery = fs.readFileSync('public/query.js', 'utf8');
 
-test('mail account and alias imports enforce a backend limit of 100', () => {
+test('backend mail account imports allow 10 while alias imports allow 100', () => {
   const accountImport = server.slice(
     server.indexOf("app.post('/api/admin/mail-accounts/import'"),
     server.indexOf("app.get('/api/admin/mail-import-jobs/:id'")
@@ -20,7 +20,7 @@ test('mail account and alias imports enforce a backend limit of 100', () => {
     server.indexOf("app.post('/api/admin/aliases/:id/reset'")
   );
 
-  assert.match(accountImport, /requested\.length > 100/);
+  assert.match(accountImport, /requested\.length > 10/);
   assert.match(aliasImport, /requested\.length > 100/);
   assert.match(admin, /accounts\.length > 100/);
   assert.match(admin, /aliases\.length > 100/);
@@ -125,7 +125,7 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.doesNotMatch(batchRoute, /a\.address|a\.label|alias:\s*maskEmail|label:\s*alias/);
 });
 
-test('batch inbox searches seven-day mail and keeps results grouped by full mailbox address', () => {
+test('batch inbox searches seven-day mail in a three-pane workspace by full mailbox address', () => {
   const html = fs.readFileSync('public/index.html', 'utf8');
   const styles = fs.readFileSync('public/styles.css', 'utf8');
   const batchInboxRoute = server.slice(
@@ -152,20 +152,31 @@ test('batch inbox searches seven-day mail and keeps results grouped by full mail
   assert.match(html, /data-public-view="batch-inbox"/);
   assert.match(html, /id="batch-inbox-search"/);
   assert.doesNotMatch(html, /验证码方式/);
-  assert.match(html, /id="batch-inbox-groups"/);
+  assert.match(html, /id="batch-inbox-workspace"/);
+  assert.match(html, /id="batch-inbox-mailboxes"/);
+  assert.match(html, /id="batch-inbox-messages"/);
+  assert.match(html, /id="batch-inbox-message-detail"/);
+  assert.match(html, /id="batch-inbox-import-dialog"/);
+  assert.doesNotMatch(html, /id="expand-batch-inbox"|id="collapse-batch-inbox"|id="batch-inbox-groups"/);
   assert.match(publicQuery, /request\('\/api\/query\/batch-inbox'/);
   assert.match(publicQuery, /function splitQueryTokens\(tokens, size = 50\)/);
   assert.match(publicQuery, /requestBatchTokens\('\/api\/query\/batch-inbox'/);
   assert.doesNotMatch(publicQuery, /tokens\.length > 50/);
-  assert.match(publicQuery, /data-batch-inbox-toggle/);
-  assert.match(publicQuery, /batchInboxState\.expanded/);
+  assert.match(publicQuery, /data-batch-inbox-mailbox/);
+  assert.match(publicQuery, /batchInboxState\.selectedMailboxIndex/);
+  assert.doesNotMatch(publicQuery, /batchInboxState\.expanded|data-batch-inbox-toggle/);
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
+  assert.match(publicQuery, /batchInboxMessageDetail\.innerHTML/);
+  assert.doesNotMatch(publicQuery, /batchInboxDetail\.showModal/);
+  assert.match(publicQuery, /batchInboxImportDialog\.showModal/);
+  assert.match(publicQuery, /loadBatchInbox\(\{ preserveSelection: true, errorBox: batchInboxReimportError \}\)/);
   assert.match(publicQuery, /batch-inbox-message-subject/);
   assert.match(publicQuery, /batch-inbox-message-preview/);
   assert.match(publicQuery, /batch-inbox-message-line[\s\S]*?formatMailDate\(message\.receivedAt\)/);
   assert.doesNotMatch(publicQuery, /formatFolders\(message\.folders\)|formatFolders\(detail\.folders\)|所在文件夹/);
   assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|data-copy-detail-code|纯文本正文/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
-  assert.match(styles, /\.batch-inbox-group\.expanded \.batch-inbox-chevron/);
+  assert.match(styles, /\.batch-inbox-workspace \{[^}]*grid-template-columns: minmax\(230px, \.65fr\) minmax\(320px, \.9fr\) minmax\(420px, 1\.45fr\)/);
+  assert.match(styles, /\.batch-inbox-workspace\.show-detail \.batch-inbox-message-detail/);
   assert.match(styles, /\.public-nav \{ min-width: 0; display: flex;[\s\S]*?overflow-x: auto;/);
 });

@@ -79,6 +79,7 @@ const auditActionLabels = Object.freeze({
   admin_message_opened: '已查看聚合邮件正文',
   alias_created: '已创建邮箱',
   alias_edited: '已编辑邮箱',
+  aliases_export_prepared: '已准备邮箱密钥导出',
   aliases_exported: '已导出邮箱密钥',
   aliases_imported: '已批量导入邮箱',
   alias_token_regenerated: '已重置查询密钥',
@@ -589,7 +590,17 @@ function downloadText(filename, value) {
 function showImportedAliases(data) {
   openModal('批量导入完成', `<p>成功创建 ${data.created.length} 条，跳过 ${data.skipped.length} 条。</p>${data.created.length ? `<div class="secret-box import-results">${data.created.map((row) => `${escapeHtml(row.address)}--${escapeHtml(row.token)}`).join('\n')}</div><div class="form-actions"><button id="download-import-results" class="btn btn-primary"><i data-lucide="download" class="icon"></i><span>下载新密钥</span></button></div>` : ''}${data.skipped.length ? `<p class="muted compact-note">跳过：${data.skipped.map((row) => `${escapeHtml(row.address || '空值')}（${escapeHtml(row.reason)}）`).join('、')}</p>` : ''}`);
   const button = document.querySelector('#download-import-results');
-  if (button) button.addEventListener('click', () => downloadText(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.created)));
+  if (button) button.addEventListener('click', async () => {
+    button.disabled = true;
+    downloadText(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.created));
+    try {
+      await api('/api/admin/aliases/export/confirm', { method: 'POST', body: JSON.stringify({ aliasIds: data.created.map((row) => row.id) }) });
+      toastMessage(`已下载并标记 ${data.created.length} 个邮箱`);
+    } catch (error) {
+      toastMessage(`文件已下载，但导出状态确认失败：${error.message}`);
+      button.disabled = false;
+    }
+  });
   lucide.createIcons();
 }
 
@@ -678,12 +689,30 @@ document.querySelector('#message-search')?.addEventListener('input', () => {
   inbox.searchTimer = setTimeout(() => loadInbox().catch(() => {}), 250);
 });
 
-document.querySelector('#export-aliases').addEventListener('click', async () => {
-  const data = await api('/api/admin/aliases/export');
-  if (!data.aliases.length) return toastMessage(data.skipped ? '没有可导出的密钥，请先重置旧密钥' : '没有可导出的邮箱密钥');
-  downloadText(`icloud-hq-aliases-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.aliases));
-  toastMessage(data.skipped ? `已导出 ${data.aliases.length} 条，跳过 ${data.skipped} 条不可恢复的旧密钥` : `已导出 ${data.aliases.length} 条邮箱密钥`);
-});
+async function exportAliases(mode, button) {
+  button.disabled = true;
+  try {
+    const data = await api(`/api/admin/aliases/export?mode=${mode}`);
+    if (!data.aliases.length) {
+      return toastMessage(data.skipped ? '没有可导出的密钥，请先重置旧密钥' : mode === 'new' ? '没有尚未导出的新增邮箱' : '没有可导出的邮箱密钥');
+    }
+    const suffix = mode === 'new' ? 'new' : 'all';
+    downloadText(`icloud-hq-aliases-${suffix}-${new Date().toISOString().slice(0, 10)}.txt`, formatAliasSecrets(data.aliases));
+    if (mode === 'new') {
+      await api('/api/admin/aliases/export/confirm', { method: 'POST', body: JSON.stringify({ exportToken: data.exportToken }) });
+    }
+    toastMessage(data.skipped
+      ? `已导出 ${data.aliases.length} 条，跳过 ${data.skipped} 条不可恢复的旧密钥`
+      : `已导出 ${data.aliases.length} 条邮箱密钥`);
+  } catch (error) {
+    toastMessage(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+document.querySelector('#export-new-aliases').addEventListener('click', (event) => exportAliases('new', event.currentTarget));
+document.querySelector('#export-all-aliases').addEventListener('click', (event) => exportAliases('all', event.currentTarget));
 
 document.querySelector('#import-aliases').addEventListener('click', () => {
   if (!state.data.accounts.length) return toastMessage('请先接入母邮箱');

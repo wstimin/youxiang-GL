@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS aliases (
   token_encrypted TEXT,
   token_hint TEXT,
   token_expires_at TIMESTAMPTZ,
+  exported_at TIMESTAMPTZ,
   totp_secret_encrypted TEXT,
   totp_issuer TEXT NOT NULL DEFAULT '',
   totp_account_name TEXT NOT NULL DEFAULT '',
@@ -124,6 +125,34 @@ ALTER TABLE aliases ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
 ALTER TABLE aliases ADD COLUMN IF NOT EXISTS totp_issuer TEXT NOT NULL DEFAULT '';
 ALTER TABLE aliases ADD COLUMN IF NOT EXISTS totp_account_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE aliases ADD COLUMN IF NOT EXISTS token_encrypted TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'aliases'
+      AND column_name = 'exported_at'
+  ) THEN
+    ALTER TABLE aliases ADD COLUMN exported_at TIMESTAMPTZ;
+    UPDATE aliases SET exported_at = NOW();
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS aliases_pending_export_idx
+  ON aliases(id) WHERE exported_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS alias_export_batches (
+  id_hash TEXT PRIMARY KEY,
+  admin_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  alias_ids BIGINT[] NOT NULL DEFAULT ARRAY[]::BIGINT[],
+  expires_at TIMESTAMPTZ NOT NULL,
+  confirmed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS alias_export_batches_expires_idx
+  ON alias_export_batches(expires_at);
 
 CREATE TABLE IF NOT EXISTS totp_entries (
   id BIGSERIAL PRIMARY KEY,

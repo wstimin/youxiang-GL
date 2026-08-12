@@ -126,6 +126,7 @@ async function cleanExpired() {
   const auditRetentionDays = Math.max(7, Math.min(3650, Number(process.env.AUDIT_RETENTION_DAYS || 90)));
   await pool.query('DELETE FROM sessions WHERE expires_at < NOW()');
   await pool.query('DELETE FROM login_challenges WHERE expires_at < NOW()');
+  await pool.query('DELETE FROM alias_export_batches WHERE expires_at < NOW()');
   await pool.query(
     `UPDATE verification_messages
      SET code_encrypted = NULL, code_masked = NULL

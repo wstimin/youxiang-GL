@@ -843,7 +843,7 @@ app.post('/api/admin/mail-account/:id/sync', ...adminApi(async (req, res) => {
 app.post('/api/admin/mail-accounts/import', ...adminApi(async (req, res) => {
   const requested = Array.isArray(req.body.accounts) ? req.body.accounts : [];
   if (!requested.length) return res.status(400).json({ error: '请至少提供一个邮箱账户' });
-  if (requested.length > 100) return res.status(400).json({ error: '每次最多批量导入 100 个邮箱' });
+  if (requested.length > 10) return res.status(400).json({ error: '每次最多批量导入 10 个母邮箱' });
 
   const parsed = requested.map(parseImportAccount);
   const seen = new Set();
@@ -1172,10 +1172,14 @@ app.patch('/api/admin/aliases/:id', ...adminApi(async (req, res) => {
 
 app.get('/api/admin/aliases/export', ...adminApi(async (req, res) => {
   noStore(res);
+  const mode = String(req.query.mode || 'new').trim().toLowerCase();
+  if (!['new', 'all'].includes(mode)) return res.status(400).json({ error: '导出方式无效' });
   const result = await pool.query(
-    `SELECT a.address, a.token_encrypted
+    `SELECT a.id, a.address, a.token_encrypted
      FROM aliases a JOIN mail_accounts m ON m.id = a.mail_account_id
+     WHERE ($1 = 'all' OR a.exported_at IS NULL)
      ORDER BY m.email, a.address`
+    , [mode]
   );
   const aliases = [];
   let skipped = 0;
@@ -1185,13 +1189,70 @@ app.get('/api/admin/aliases/export', ...adminApi(async (req, res) => {
       continue;
     }
     try {
-      aliases.push({ address: row.address, token: decrypt(row.token_encrypted) });
+      aliases.push({ id: row.id, address: row.address, token: decrypt(row.token_encrypted) });
     } catch (_error) {
       skipped += 1;
     }
   }
-  await audit({ actor: `user:${req.admin.id}`, action: 'aliases_exported', detail: `exported=${aliases.length};skipped=${skipped}`, ip: extractClientIp(req) });
-  res.json({ aliases, skipped });
+  let exportToken = '';
+  if (mode === 'new' && aliases.length) {
+    exportToken = randomToken(24);
+    await pool.query(
+      `INSERT INTO alias_export_batches(id_hash, admin_id, alias_ids, expires_at)
+       VALUES ($1, $2, $3::bigint[], NOW() + INTERVAL '30 minutes')`,
+      [digest(exportToken), req.admin.id, aliases.map((row) => row.id)]
+    );
+  }
+  await audit({ actor: `user:${req.admin.id}`, action: 'aliases_export_prepared', detail: `mode=${mode};exported=${aliases.length};skipped=${skipped}`, ip: extractClientIp(req) });
+  res.json({ aliases: aliases.map(({ address, token }) => ({ address, token })), skipped, mode, exportToken });
+}));
+
+app.post('/api/admin/aliases/export/confirm', ...adminApi(async (req, res) => {
+  const exportToken = String(req.body.exportToken || '').trim();
+  const suppliedIds = Array.isArray(req.body.aliasIds)
+    ? [...new Set(req.body.aliasIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))]
+    : [];
+  if (!exportToken && !suppliedIds.length) return res.status(400).json({ error: '没有需要确认的导出记录' });
+  if (suppliedIds.length > 100) return res.status(400).json({ error: '一次最多确认 100 个邮箱' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let aliasIds = suppliedIds;
+    if (exportToken) {
+      const batch = await client.query(
+        `SELECT alias_ids FROM alias_export_batches
+         WHERE id_hash = $1 AND admin_id = $2 AND expires_at > NOW()
+         FOR UPDATE`,
+        [digest(exportToken), req.admin.id]
+      );
+      if (!batch.rowCount) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: '导出确认已过期，请重新导出' });
+      }
+      aliasIds = batch.rows[0].alias_ids.map(Number);
+    }
+    const updated = await client.query(
+      `UPDATE aliases SET exported_at = NOW()
+       WHERE id = ANY($1::bigint[]) AND exported_at IS NULL
+       RETURNING id`,
+      [aliasIds]
+    );
+    if (exportToken) {
+      await client.query(
+        'UPDATE alias_export_batches SET confirmed_at = COALESCE(confirmed_at, NOW()) WHERE id_hash = $1',
+        [digest(exportToken)]
+      );
+    }
+    await client.query('COMMIT');
+    await audit({ actor: `user:${req.admin.id}`, action: 'aliases_exported', detail: `exported=${updated.rowCount};skipped=0`, ip: extractClientIp(req) });
+    res.json({ ok: true, confirmed: updated.rowCount });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }));
 
 app.post('/api/admin/aliases/import', ...adminApi(async (req, res) => {
@@ -1218,7 +1279,7 @@ app.post('/api/admin/aliases/import', ...adminApi(async (req, res) => {
        ON CONFLICT (address) DO NOTHING RETURNING id, address`,
       [accountId, address, label, digest(token), encrypt(token), token.slice(-6)]
     );
-    if (result.rowCount) created.push({ address, token });
+    if (result.rowCount) created.push({ id: result.rows[0].id, address, token });
     else skipped.push({ address, reason: '子邮箱已存在' });
   }
   await audit({ actor: `user:${req.admin.id}`, action: 'aliases_imported', target: account.rows[0].email, detail: `created=${created.length};skipped=${skipped.length}`, ip: extractClientIp(req) });

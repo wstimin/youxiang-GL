@@ -47,7 +47,7 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-avatar-body"/);
   assert.match(adminHtml, /id="unmatched-table"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(adminHtml, /admin\.js\?v=20260810-21/);
+  assert.match(adminHtml, /admin\.js\?v=20260812-1/);
   assert.match(adminHtml, /styles\.css\?v=20260810-22/);
   assert.doesNotMatch(adminHtml, /class="nav-totp"|class="twofa-mark"/);
   assert.doesNotMatch(adminHtml, /data-lucide="shield-keyhole"/);
@@ -56,21 +56,39 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.doesNotMatch(styles, /\.nav-totp-icon|\.nav button\.nav-totp/);
 });
 
-test('alias secret exports use address--token text format', () => {
+test('alias secret exports track first downloads without coupling to token changes', () => {
   const exportRoute = server.slice(
     server.indexOf("app.get('/api/admin/aliases/export'"),
     server.indexOf("app.post('/api/admin/aliases/import'")
   );
 
-  assert.match(exportRoute, /SELECT a\.address, a\.token_encrypted/);
+  const regenerateRoute = server.slice(
+    server.indexOf("app.post('/api/admin/aliases/:id/regenerate'"),
+    server.indexOf("app.post('/api/admin/aliases/:id/toggle'")
+  );
+
+  assert.match(schema, /exported_at TIMESTAMPTZ/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS alias_export_batches/);
+  assert.match(schema, /aliases_pending_export_idx/);
+  assert.match(schema, /UPDATE aliases SET exported_at = NOW\(\)/);
+  assert.match(exportRoute, /SELECT a\.id, a\.address, a\.token_encrypted/);
+  assert.match(exportRoute, /a\.exported_at IS NULL/);
   assert.match(exportRoute, /decrypt\(row\.token_encrypted\)/);
-  assert.match(exportRoute, /res\.json\(\{ aliases, skipped \}\)/);
+  assert.match(exportRoute, /alias_export_batches/);
+  assert.match(exportRoute, /UPDATE aliases SET exported_at = NOW\(\)/);
+  assert.match(exportRoute, /res\.json\(\{ ok: true, confirmed: updated\.rowCount \}\)/);
   assert.doesNotMatch(exportRoute, /res\.json\([^)]*token_encrypted/);
+  assert.doesNotMatch(regenerateRoute, /exported_at/);
   assert.match(admin, /`\$\{row\.address\}--\$\{row\.token\}`/);
   assert.match(admin, /text\/plain;charset=utf-8/);
-  assert.match(admin, /icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt/g);
+  assert.match(adminHtml, /id="export-new-aliases"/);
+  assert.match(adminHtml, /id="export-all-aliases"/);
+  assert.match(admin, /aliases\/export\?mode=\$\{mode\}/);
+  assert.match(admin, /aliases\/export\/confirm/);
+  assert.match(admin, /aliasIds: data\.created\.map\(\(row\) => row\.id\)/);
+  assert.match(server, /created\.push\(\{ id: result\.rows\[0\]\.id, address, token \}\)/);
   assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.created\)\)/);
-  assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.aliases\)\)/);
+  assert.match(admin, /downloadText\(`icloud-hq-aliases-\$\{suffix\}-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.txt`, formatAliasSecrets\(data\.aliases\)\)/);
 });
 
 test('mail history is always available without a global verification mode switch', () => {
