@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractBodyText, extractCode, findAlias, publicSenderText } = require('../src/extract');
+const { extractBodyText, extractCode, findAlias, publicSenderName, publicSenderText } = require('../src/extract');
 
 test('extracts readable text from an HTML email without code or styling', () => {
   const html = `<!doctype html><html><head>
@@ -70,6 +70,15 @@ test('shows the sender name and restores an iCloud relay sender address', () => 
 test('keeps ordinary sender names and addresses intact', () => {
   assert.equal(publicSenderText('Google <no-reply@google.com>'), 'Google <no-reply@google.com>');
   assert.equal(publicSenderText('no-reply@google.com'), 'no-reply@google.com');
+});
+
+test('shows only the sender name in batch verification results', () => {
+  assert.equal(
+    publicSenderName('"YIKA" <no-reply_at_yikahk_com_ypbhd135znkkc1_fa4j4829@icloud.com>'),
+    'YIKA'
+  );
+  assert.equal(publicSenderName('Google <no-reply@google.com>'), 'Google');
+  assert.equal(publicSenderName('no-reply@google.com'), 'no-reply');
 });
 
 test('extracts Chinese verification code', () => {

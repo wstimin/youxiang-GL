@@ -96,9 +96,9 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.doesNotMatch(script, /已转换并同步到管理后台/);
   assert.match(html, /id="totp-view"/);
-  assert.match(html, /styles\.css\?v=20260812-26/);
+  assert.match(html, /styles\.css\?v=20260815-1/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260812-25/);
+  assert.match(html, /query\.js\?v=20260815-1/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
@@ -124,7 +124,10 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   assert.match(batchRoute, /req\.body\.tokens\.length > 50/);
   assert.match(batchRoute, /req\.body\.tokens\.map\(normalizePublicToken\)/);
   assert.match(batchRoute, /a\.token_digest = ANY\(\$1::text\[\]\)/);
+  assert.match(batchRoute, /SELECT a\.id, a\.address, a\.token_digest/);
   assert.match(batchRoute, /LEFT JOIN LATERAL/);
+  assert.match(batchRoute, /address: alias\.address/);
+  assert.match(batchRoute, /sender: publicSenderName\(alias\.sender\)/);
   assert.match(batchRoute, /status: message \? 'received' : 'waiting'/);
   assert.match(batchRoute, /status: 'invalid'/);
   assert.match(batchRoute, /status: 'invalid_format'/);
@@ -136,6 +139,7 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   assert.match(html, /id="mail-batch-tokens"/);
   assert.match(html, /id="mail-batch-result"/);
   assert.match(script, /requestBatchTokens\('\/api\/query\/batch', tokens\)/);
+  assert.match(script, /item\.address \|\| `查询项 \$\{item\.index \+ 1\}`/);
   assert.match(script, /splitQueryTokens\(tokens\)/);
   assert.match(script, /setTimeout\(\(\) => refreshMailBatch\(\)/);
   assert.match(script, /let activeMailBatchTokens = \[\]/);

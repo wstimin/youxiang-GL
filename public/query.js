@@ -5,6 +5,7 @@ const mailForm = document.querySelector('#mail-query-form');
 const mailTokenInput = document.querySelector('#mail-token');
 const mailErrorBox = document.querySelector('#mail-query-error');
 const mailPlaceholder = document.querySelector('#mail-placeholder');
+const mailResultsPane = document.querySelector('.mail-results-pane');
 const mailListPane = document.querySelector('#mail-list-pane');
 const mailView = document.querySelector('#mail-view');
 const mailListTitle = document.querySelector('#mail-list-title');
@@ -68,6 +69,24 @@ const totpErrorBox = document.querySelector('#totp-query-error');
 const totpPlaceholder = document.querySelector('#totp-placeholder');
 const totpResultBox = document.querySelector('#totp-result');
 const toast = document.querySelector('#toast');
+const mailViewDescription = document.querySelector('#mail-view-description');
+const mailCurrentMode = document.querySelector('#mail-current-mode');
+const mailConnectionStat = document.querySelector('#mail-connection-stat');
+const mailRefreshStat = document.querySelector('#mail-refresh-stat');
+const mailFormTitle = document.querySelector('#mail-form-title');
+const mailTokenLabel = document.querySelector('#mail-token-label');
+const mailVisibleCount = document.querySelector('#mail-visible-count');
+const refreshCurrentViewButton = document.querySelector('#refresh-current-view');
+const changeMailboxButton = document.querySelector('#change-mailbox');
+const singleMailboxPane = document.querySelector('#single-mailbox-pane');
+const singleMailboxCard = document.querySelector('#single-mailbox-card');
+const singleMailboxAddress = document.querySelector('#single-mailbox-address');
+const singleMailboxCount = document.querySelector('#single-mailbox-count');
+const singleMailboxSync = document.querySelector('#single-mailbox-sync');
+const singleMailboxStatus = document.querySelector('#single-mailbox-status');
+const mailBackMailboxButton = document.querySelector('#mail-back-mailbox');
+const singleCodeMailbox = document.querySelector('#single-code-mailbox');
+const singleCodeState = document.querySelector('#single-code-state');
 
 const activeTotps = new Map();
 const mailState = {
@@ -162,7 +181,17 @@ function updateMailbox(data) {
   mailboxLastSync.textContent = formatSyncLabel(mailbox.lastSyncedAt);
   mailboxHealthDot.dataset.state = mailbox.state || 'updating';
   mailTotalCount.textContent = String(mailbox.totalMessages ?? 0);
+  mailConnectionStat.textContent = healthLabels[mailbox.state] || '只读访问';
+  mailRefreshStat.textContent = formatSyncLabel(mailbox.lastSyncedAt);
   inboxWorkspace.dataset.mailboxState = mailbox.state || 'updating';
+  singleMailboxAddress.textContent = mailbox.address || '授权邮箱';
+  singleMailboxCount.textContent = `${Number(mailbox.totalMessages || 0)} 封`;
+  singleMailboxSync.textContent = formatSyncLabel(mailbox.lastSyncedAt);
+  singleMailboxStatus.className = `batch-inbox-state ${mailbox.state === 'paused' ? 'invalid' : mailbox.state === 'delayed' ? 'delayed' : 'ready'}`;
+  singleMailboxStatus.innerHTML = `<span></span>${escapeHtml(healthLabels[mailbox.state] || '已连接')}`;
+  singleCodeMailbox.textContent = mailbox.address || '授权邮箱';
+  singleCodeState.className = `batch-inbox-state ${mailbox.state === 'paused' ? 'invalid' : mailbox.state === 'delayed' ? 'delayed' : 'ready'}`;
+  singleCodeState.innerHTML = `<span></span>${escapeHtml(mailbox.state === 'paused' ? '已暂停' : '已收到')}`;
 }
 
 function setRefreshLabel() {
@@ -217,11 +246,22 @@ function setPublicView(view) {
   batchInboxView.classList.toggle('hidden', view !== 'batch-inbox');
   totpView.classList.toggle('hidden', view !== 'totp');
   inboxWorkspace.dataset.view = view;
+  const primaryPanel = view === 'batch' ? 'code' : view === 'batch-inbox' ? 'email' : view === 'totp' ? 'totp' : mailState.filter === 'code' ? 'code' : 'email';
+  inboxWorkspace.dataset.primaryPanel = primaryPanel;
   document.querySelectorAll('[data-public-view]').forEach((button) => {
     const isMailFilter = Boolean(button.dataset.mailFilter);
     const active = button.dataset.publicView === view && (!isMailFilter || button.dataset.mailFilter === mailState.filter);
     button.classList.toggle('active', active);
     if (isMailFilter) button.setAttribute('aria-pressed', String(active));
+  });
+  document.querySelectorAll('[data-primary-panel]').forEach((button) => {
+    const isPrimaryTab = button.closest('.public-nav');
+    if (isPrimaryTab) button.classList.toggle('active', button.dataset.primaryPanel === primaryPanel);
+  });
+  document.querySelectorAll('[data-mode-group]').forEach((group) => group.classList.toggle('hidden', group.dataset.modeGroup !== primaryPanel));
+  document.querySelectorAll('[data-mode-panel]').forEach((button) => {
+    const activeMode = view === 'batch' || view === 'batch-inbox' ? 'batch' : 'single';
+    button.classList.toggle('active', button.dataset.modePanel === primaryPanel && button.dataset.mode === activeMode);
   });
   if (view !== 'batch') clearTimeout(mailBatchRefreshTimer);
   if (view === 'batch' && activeMailBatchTokens.length && mailBatchResultBox.innerHTML) {
@@ -244,8 +284,14 @@ function selectAccessMail(filter = 'all') {
 function updateMailFilterUi() {
   const codeOnly = mailState.filter === 'code';
   const resultsVisible = mailPlaceholder.classList.contains('hidden');
-  mailListTitle.textContent = codeOnly ? '接收验证码' : '邮箱';
-  mailSearchInput.placeholder = codeOnly ? '搜索验证码邮件的发件人、主题或摘要' : '搜索发件人、主题或邮件内容';
+  mailListTitle.textContent = codeOnly ? '验证码接收结果' : '收件箱';
+  mailCurrentMode.textContent = codeOnly ? '验证码' : '完整邮箱';
+  mailFormTitle.textContent = codeOnly ? '单个验证码接收' : '单个邮箱查询';
+  mailViewDescription.textContent = codeOnly ? '输入查询密钥，接收该邮箱最新的有效验证码。' : '输入查询密钥后，查看发件人、主题、时间和邮件内容。';
+  mailView.querySelector('.public-tool-head h1').textContent = codeOnly ? '验证码' : '邮箱';
+  mailTokenLabel.textContent = codeOnly ? '邮箱地址 / 密钥' : '邮箱地址或密钥';
+  mailTokenInput.placeholder = codeOnly ? '输入邮箱或密钥' : '输入邮箱地址或密钥';
+  mailSearchInput.placeholder = codeOnly ? '验证码 / code / OTP' : '搜索发件人、主题或邮件内容';
   refreshMailButton.title = codeOnly ? '刷新验证码' : '刷新邮件';
   refreshMailButton.setAttribute('aria-label', refreshMailButton.title);
   newMailBanner.querySelector('span').textContent = codeOnly ? '有新的验证码，点击查看' : '有新邮件，点击查看';
@@ -253,21 +299,30 @@ function updateMailFilterUi() {
   const emptyDescription = mailListEmpty.querySelector('span');
   emptyTitle.textContent = codeOnly ? '暂时没有有效验证码' : '没有找到邮件';
   emptyDescription.textContent = codeOnly ? '验证码邮件到达后会自动显示。' : '可以刷新或修改搜索条件。';
+  mailPlaceholder.querySelector('strong').textContent = codeOnly ? '等待接收验证码' : '邮箱结果显示在这里';
+  mailPlaceholder.querySelector('span:last-child').textContent = codeOnly ? '输入查询密钥后，最新有效验证码会显示在这里。' : '输入查询密钥后，可以查看最近 7 天的收件箱。';
   mailListPane.classList.toggle('code-mode', resultsVisible && codeOnly);
   mailDetail.classList.toggle('hidden', !resultsVisible || codeOnly);
+  singleMailboxPane.classList.toggle('hidden', !resultsVisible || codeOnly);
+  mailResultsPane.classList.toggle('single-mail-workspace', resultsVisible && !codeOnly);
 }
 
 function setMailResultsVisible(visible) {
+  mailView.classList.toggle('has-results', visible);
   mailPlaceholder.classList.toggle('hidden', visible);
   mailListPane.classList.toggle('hidden', !visible);
   mailDetail.classList.toggle('hidden', !visible || mailState.filter === 'code');
   mailListPane.classList.toggle('code-mode', visible && mailState.filter === 'code');
+  singleMailboxPane.classList.toggle('hidden', !visible || mailState.filter === 'code');
+  mailResultsPane.classList.toggle('single-mail-workspace', visible && mailState.filter !== 'code');
+  mailResultsPane.classList.remove('show-messages', 'show-detail');
 }
 
 function resetMailDetail() {
   mailState.selectedId = null;
+  mailResultsPane.classList.remove('show-detail');
   mailDetail.classList.remove('mobile-visible');
-  mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看邮件内容。</span></div>';
+  mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon public-symbol-icon" aria-hidden="true">📨</span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看邮件内容。</span></div>';
   renderIcons();
 }
 
@@ -307,6 +362,8 @@ function bindMessageItems(messages) {
 }
 
 function updateMailListState(loadedCount) {
+  const visibleCount = mailMessageList.children.length;
+  mailVisibleCount.textContent = `${visibleCount} ${mailState.filter === 'code' ? '个' : '封'}`;
   mailListEmpty.classList.toggle('hidden', mailMessageList.children.length > 0 || mailState.loading);
   mailLoadMoreButton.classList.toggle('hidden', !mailState.cursor || mailState.loading);
   if (mailState.loading) mailListStatus.textContent = mailMessageList.children.length
@@ -379,6 +436,7 @@ async function openMailMessage(message, button) {
   mailState.selectedId = Number(message.id);
   mailMessageList.querySelectorAll('.public-message-item').forEach((item) => item.classList.toggle('active', item === button));
   mailDetail.classList.add('mobile-visible');
+  mailResultsPane.classList.add('show-messages', 'show-detail');
   mailDetail.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
   try {
     const data = await request('/api/query/message', { token: mailState.token, messageId: Number(message.id) });
@@ -394,7 +452,10 @@ async function openMailMessage(message, button) {
     </dl>
     <section class="public-detail-content"><div class="public-detail-content-label"><i data-lucide="align-left"></i><span>邮件内容</span></div><pre class="public-detail-body"></pre></section>`;
     mailDetail.querySelector('.public-detail-body').textContent = detail.body || '这封邮件没有可显示的内容。';
-    mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => mailDetail.classList.remove('mobile-visible'));
+    mailDetail.querySelector('.public-mobile-back').addEventListener('click', () => {
+      mailDetail.classList.remove('mobile-visible');
+      mailResultsPane.classList.remove('show-detail');
+    });
     renderIcons();
   } catch (error) {
     mailDetail.innerHTML = `<div class="public-detail-empty"><i data-lucide="circle-alert"></i><strong>正文加载失败</strong><span>${escapeHtml(error.message)}</span></div>`;
@@ -434,11 +495,11 @@ function renderMailBatch(data) {
   const invalid = data.results.filter((item) => item.status === 'invalid' || item.status === 'invalid_format').length;
   mailBatchPlaceholder.classList.add('hidden');
   mailBatchResultBox.classList.remove('hidden');
-  mailBatchResultBox.innerHTML = `<div class="result-meta batch-result-meta"><strong>查询结果</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
+  mailBatchResultBox.innerHTML = `<div class="result-meta batch-result-meta"><strong>接收结果（全部展开）</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
     <div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
-      <div class="batch-result-identity"><span class="batch-row-index">${item.index + 1}</span><div><strong>查询项 ${item.index + 1}</strong><small>独立查询密钥</small></div></div>
+      <div class="batch-result-identity"><span class="batch-row-index">${item.index + 1}</span><div><strong>${escapeHtml(item.address || `查询项 ${item.index + 1}`)}</strong><small>${item.address ? '验证码对应邮箱' : '独立查询密钥'}</small></div></div>
       <div class="batch-result-state">${mailBatchStatus(item)}</div>
-      <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>${escapeHtml(item.message.sender || item.message.subject || '验证码邮件')}</small>` : `<strong>------</strong><small>${item.status === 'invalid_format' ? '请使用 cv_ 密钥或邮箱--密钥格式' : item.status === 'invalid' ? '查询密钥不存在或已失效' : '等待最新验证码'}</small>`}</div>
+      <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>发件人：${escapeHtml(item.message.sender || '未知发件人')}</small>` : `<strong>------</strong><small>${item.status === 'invalid_format' ? '请使用 cv_ 密钥或邮箱--密钥格式' : item.status === 'invalid' ? '查询密钥不存在或已失效' : '等待最新验证码'}</small>`}</div>
       <div class="batch-result-action">${item.message ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-batch-code="${item.index}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
     </section>`).join('')}</div>
     <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的结果</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>`;
@@ -539,7 +600,7 @@ function renderBatchInboxMessages() {
 function resetBatchInboxDetail() {
   batchInboxState.selectedMessageId = null;
   batchInboxWorkspace.classList.remove('show-detail');
-  batchInboxMessageDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon"><i data-lucide="mail-open"></i></span><strong>选择一封邮件</strong><span>点击中间的邮件后，在这里查看邮件内容。</span></div>';
+  batchInboxMessageDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon public-symbol-icon" aria-hidden="true">📨</span><strong>选择一封邮件</strong><span>点击中间的邮件后，在这里查看邮件内容。</span></div>';
 }
 
 function selectBatchInboxMailbox(index, { navigate = false } = {}) {
@@ -773,8 +834,23 @@ document.querySelectorAll('[data-public-view]').forEach((button) => button.addEv
   setPublicView(button.dataset.publicView);
 }));
 
+document.querySelectorAll('[data-mode-panel][data-mode="single"]').forEach((button) => button.addEventListener('click', async () => {
+  const filter = button.dataset.modePanel === 'code' ? 'code' : 'all';
+  if (!mailState.token) {
+    selectAccessMail(filter);
+    return;
+  }
+  const changed = mailState.filter !== filter;
+  mailState.filter = filter;
+  updateMailFilterUi();
+  setPublicView('mail');
+  if (changed) {
+    try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+  }
+}));
+
 setMailResultsVisible(false);
-selectAccessMail('all');
+selectAccessMail('code');
 
 mailForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -800,22 +876,58 @@ mailForm.addEventListener('submit', async (event) => {
   }
 });
 
-changeKeyButton.addEventListener('click', () => {
+changeKeyButton.addEventListener('click', () => showToast('当前页面无需额外设置'));
+
+changeMailboxButton.addEventListener('click', () => {
   clearTimeout(mailRefreshTimer);
   mailState.token = '';
   mailState.cursor = null;
   mailState.keyword = '';
-  mailState.filter = 'all';
-  mailState.latestId = null;
-  mailState.lastRefreshAt = null;
-  mailState.loading = false;
-  mailState.requestId += 1;
+  mailState.selectedId = null;
+  mailTokenInput.value = '';
   mailTokenInput.required = true;
   mailSearchInput.value = '';
+  clearMailSearchButton.classList.add('hidden');
   mailMessageList.replaceChildren();
-  resetMailDetail();
   setMailResultsVisible(false);
-  selectAccessMail('all');
+  updateMailFilterUi();
+  mailTotalCount.textContent = '0';
+  mailConnectionStat.textContent = '等待查询';
+  mailRefreshStat.textContent = '实时';
+  singleCodeMailbox.textContent = '等待邮箱';
+  singleCodeState.className = 'batch-inbox-state empty';
+  singleCodeState.innerHTML = '<span></span>等待中';
+  mailTokenInput.focus();
+  renderIcons();
+});
+
+singleMailboxCard.addEventListener('click', () => mailResultsPane.classList.add('show-messages'));
+mailBackMailboxButton.addEventListener('click', () => mailResultsPane.classList.remove('show-messages', 'show-detail'));
+
+refreshCurrentViewButton.addEventListener('click', async () => {
+  refreshCurrentViewButton.disabled = true;
+  try {
+    const view = inboxWorkspace.dataset.view;
+    if (view === 'mail') {
+      if (!mailState.token) return void showToast('请先输入邮箱或查询密钥');
+      newMailBanner.classList.add('hidden');
+      await loadMessages({ reset: true });
+    } else if (view === 'batch') {
+      if (!activeMailBatchTokens.length) return void showToast('请先输入批量查询密钥');
+      await refreshMailBatch();
+    } else if (view === 'batch-inbox') {
+      if (!activeBatchInboxTokens.length) return void showToast('请先导入邮箱查询密钥');
+      await loadBatchInbox();
+    } else if (view === 'totp') {
+      if (!activeTotps.size) return void showToast('请先添加 2FA 账号');
+      await refreshTotps();
+    }
+    showToast('已刷新');
+  } catch (error) {
+    showToast(error.message || '刷新失败');
+  } finally {
+    refreshCurrentViewButton.disabled = false;
+  }
 });
 
 refreshMailButton.addEventListener('click', async () => {

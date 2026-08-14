@@ -8,7 +8,7 @@ const server = fs.readFileSync('src/server.js', 'utf8');
 const schema = fs.readFileSync('src/schema.sql', 'utf8');
 const admin = fs.readFileSync('public/admin.js', 'utf8');
 const adminHtml = fs.readFileSync('public/admin.html', 'utf8');
-const styles = fs.readFileSync('public/styles.css', 'utf8');
+const adminDesign = fs.readFileSync('public/admin-design.css', 'utf8');
 
 test('mail, alias, and TOTP records have scoped edit routes', () => {
   const mailEdit = server.slice(
@@ -40,20 +40,84 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(admin, /function renderTotpAvatar/);
   assert.match(admin, /class="admin-totp-platform"/);
   assert.match(admin, /page-title'\)\.textContent = button\.title/);
-  assert.match(adminHtml, /data-section="totp-entries"[^>]*>[\s\S]*?data-lucide="fingerprint"/);
-  assert.match(adminHtml, /class="admin-avatar-person"/);
-  assert.match(adminHtml, /class="admin-avatar-face"/);
-  assert.match(adminHtml, /class="admin-avatar-hair"/);
-  assert.match(adminHtml, /class="admin-avatar-body"/);
+  assert.match(adminHtml, /data-section="overview"[^>]*>[\s\S]*?class="nav-symbol tone-overview"[^>]*>▦</);
+  assert.match(adminHtml, /data-section="mailboxes"[^>]*>[\s\S]*?class="nav-symbol"[^>]*>📥</);
+  assert.match(adminHtml, /data-section="aliases"[^>]*>[\s\S]*?class="nav-symbol tone-alias"[^>]*>@</);
+  assert.match(adminHtml, /data-section="totp-entries"[^>]*>[\s\S]*?class="nav-symbol"[^>]*>🔐</);
+  assert.match(adminHtml, /data-section="messages"[^>]*>[\s\S]*?class="nav-symbol"[^>]*>📋</);
+  assert.match(adminHtml, /data-section="security"[^>]*>[\s\S]*?class="nav-symbol"[^>]*>🔑</);
+  assert.match(adminHtml, /class="admin-avatar"/);
+  assert.match(adminHtml, /class="admin-presence"/);
   assert.match(adminHtml, /id="unmatched-table"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(adminHtml, /admin\.js\?v=20260812-2/);
-  assert.match(adminHtml, /styles\.css\?v=20260810-22/);
+  assert.match(adminHtml, /admin\.js\?v=20260815-1/);
+  assert.match(adminHtml, /admin-design\.css\?v=20260814-11/);
+  assert.doesNotMatch(adminHtml, /styles\.css/);
+  assert.match(adminHtml, />管理中心</);
+  assert.match(adminHtml, /<title>mail管理<\/title>/);
+  assert.match(adminHtml, /mail-favicon\.svg\?v=20260815-1/);
+  assert.match(adminHtml, />邮箱管理后台</);
+  assert.match(adminHtml, />子邮箱</);
+  assert.match(adminHtml, />安全设置</);
+  assert.doesNotMatch(adminHtml, /CONTROL CENTER|MAIL ACCOUNTS|SUB MAILBOXES|INBOX RECORDS|SECURITY SETTINGS/);
+  assert.doesNotMatch(adminHtml, /API 密钥|API密钥/);
+  assert.doesNotMatch(admin, /function modalPresentation/);
   assert.doesNotMatch(adminHtml, /class="nav-totp"|class="twofa-mark"/);
   assert.doesNotMatch(adminHtml, /data-lucide="shield-keyhole"/);
-  assert.match(styles, /\.nav button > span/);
-  assert.match(styles, /\.admin-avatar-person/);
-  assert.doesNotMatch(styles, /\.nav-totp-icon|\.nav button\.nav-totp/);
+  assert.match(adminDesign, /\.nav button/);
+  assert.match(adminDesign, /\.admin-avatar/);
+  assert.match(adminDesign, /\.inbox-shell/);
+  assert.match(adminDesign, /\.modal-backdrop/);
+});
+
+test('overview cards and page actions expose existing admin functions', () => {
+  assert.match(adminHtml, /id="stats" class="stats"/);
+  assert.match(adminHtml, />今日收信</);
+  assert.match(adminHtml, />活跃邮箱</);
+  assert.match(adminHtml, />验证码提取</);
+  assert.match(adminHtml, />2FA 账号</);
+  assert.match(adminHtml, /正在加载真实数据/);
+  assert.match(admin, /data-overview-action="\$\{action\}"/);
+  assert.match(admin, /const metrics = data\.metrics \|\| \{\}/);
+  assert.match(admin, /function dailyChange/);
+  assert.match(admin, /'今日收信'/);
+  assert.match(admin, /'活跃邮箱'/);
+  assert.match(admin, /'验证码提取'/);
+  assert.match(admin, /'2FA 账号'/);
+  assert.match(admin, /'code-messages'/);
+  assert.match(admin, /#message-code-only/);
+  assert.match(admin, /function runOverviewAction/);
+  assert.doesNotMatch(admin, /function runOverviewQuickAction/);
+  assert.match(admin, /'#add-account'/);
+  assert.match(admin, /'#import-accounts'/);
+  assert.match(admin, /'#add-alias'/);
+  assert.match(admin, /'#import-aliases'/);
+  assert.match(admin, /'#export-new-aliases'/);
+  assert.match(admin, /'#export-all-aliases'/);
+  assert.doesNotMatch(adminHtml, /id="overview-quick-actions"/);
+  assert.match(adminHtml, /id="refresh-inbox"/);
+  assert.match(adminHtml, /id="revoke-other-sessions"/);
+  assert.match(adminHtml, /id="overview-audit-panel"/);
+  assert.match(server, /AS mail_received_today/);
+  assert.match(server, /AS mail_received_yesterday/);
+  assert.match(server, /AS active_aliases/);
+  assert.match(server, /AS aliases_created_last_7_days/);
+  assert.match(server, /AS codes_extracted_today/);
+  assert.match(server, /AS codes_extracted_yesterday/);
+  assert.match(server, /AS totp_accounts/);
+  assert.match(server, /AS totp_created_today/);
+  assert.match(server, /FROM mail_messages WHERE code_encrypted IS NOT NULL/);
+  assert.match(adminDesign, /\.stat-change\.up/);
+  assert.match(adminDesign, /\.stat-change\.down/);
+  assert.match(adminDesign, /\.stat-change\.neutral/);
+});
+
+test('admin mail views show parsed sender names instead of raw addresses', () => {
+  assert.match(admin, /function decodeIcloudRelayAddress/);
+  assert.match(admin, /function senderDisplayName/);
+  assert.match(admin, /senderDisplayName\(row\.sender\)/);
+  assert.match(admin, /senderDisplayName\(message\.sender\)/);
+  assert.match(admin, /detail: `\$\{senderDisplayName\(row\.sender\)\}/);
 });
 
 test('alias secret exports track first downloads without coupling to token changes', () => {

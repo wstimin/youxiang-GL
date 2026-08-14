@@ -109,6 +109,14 @@ function publicSenderText(value) {
   return name ? `${name} <${address}>` : address;
 }
 
+function publicSenderName(value) {
+  const sender = publicSenderText(value);
+  const namedAddress = sender.match(/^(.+?)\s*<[^>]+>$/);
+  if (namedAddress) return namedAddress[1].trim();
+  if (sender.includes('@')) return sender.split('@')[0].trim();
+  return sender;
+}
+
 function normalizeText(value) {
   return extractBodyText(value, '')
     .replace(/&nbsp;/gi, ' ')
@@ -147,4 +155,4 @@ function findAlias(rawHeaders, aliases) {
   }) || null;
 }
 
-module.exports = { extractBodyText, extractCode, findAlias, normalizeText, publicSenderText };
+module.exports = { extractBodyText, extractCode, findAlias, normalizeText, publicSenderName, publicSenderText };

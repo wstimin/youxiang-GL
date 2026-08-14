@@ -84,6 +84,13 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(html, /<body class="public-shell public-app-open">/);
   assert.match(html, /id="inbox-workspace" class="public-app"/);
   assert.match(html, /class="public-app-bar"/);
+  assert.match(html, /main-tab-icon public-symbol-icon"[^>]*>🔢</);
+  assert.match(html, /<title>mail查询<\/title>/);
+  assert.match(html, /public-mail-favicon\.svg\?v=20260815-2/);
+  assert.match(html, /main-tab-icon public-symbol-icon"[^>]*>📬</);
+  assert.match(html, /main-tab-icon public-symbol-icon"[^>]*>🔐</);
+  assert.match(html, /access-symbol public-symbol-icon"[^>]*>🔑</);
+  assert.match(styles, /\.public-symbol-icon/);
   assert.match(html, /<section id="mail-view" class="public-page public-mail-page"/);
   assert.match(html, /<header class="public-tool-head">[\s\S]*?<h1>邮箱<\/h1>/);
   assert.match(html, /<form id="mail-query-form" class="public-tool-form mail-query-form">/);
@@ -122,7 +129,8 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
     server.indexOf("app.post('/api/query/batch'"),
     server.indexOf("app.post('/api/query/batch-inbox'")
   );
-  assert.doesNotMatch(batchRoute, /a\.address|a\.label|alias:\s*maskEmail|label:\s*alias/);
+  assert.match(batchRoute, /a\.address/);
+  assert.doesNotMatch(batchRoute, /a\.label|alias:\s*maskEmail|label:\s*alias/);
 });
 
 test('batch inbox searches seven-day mail in a three-pane workspace by full mailbox address', () => {

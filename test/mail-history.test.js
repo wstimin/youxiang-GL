@@ -86,7 +86,7 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /request\('\/api\/query\/message'/);
   assert.match(script, /querySelector\('\.public-detail-body'\)\.textContent = detail\.body/);
   assert.doesNotMatch(script, /<dt>收件人<\/dt>|detail\.recipients/);
-  assert.match(server, /extractBodyText, publicSenderText/);
+  assert.match(server, /extractBodyText,[^\n]*publicSenderText/);
   assert.match(server, /sender: publicSenderText\(message\.sender\)/);
   assert.match(script, /newMailBanner/);
   assert.match(script, /mailboxAddress/);

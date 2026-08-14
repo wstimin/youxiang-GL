@@ -7,7 +7,7 @@ const { ImapFlow } = require('imapflow');
 const QRCode = require('qrcode');
 const { authenticator } = require('otplib');
 const { parseTotpInput, generateTotp } = require('./totp');
-const { extractBodyText, publicSenderText } = require('./extract');
+const { extractBodyText, publicSenderName, publicSenderText } = require('./extract');
 const {
   pool, initDatabase, randomToken, digest, encrypt, decrypt, hashPassword,
   verifyPassword, normalizeEmail, validEmail, extractClientIp,
@@ -530,7 +530,7 @@ app.post('/api/query/batch', async (req, res, next) => {
     const tokenDigests = tokens.map((token) => token ? digest(token) : null);
     const searchableDigests = [...new Set(tokenDigests.filter(Boolean))];
     const matched = searchableDigests.length ? await pool.query(
-       `SELECT a.id, a.token_digest,
+       `SELECT a.id, a.address, a.token_digest,
          v.id AS message_id, v.sender, v.subject, v.mailbox_paths, v.code_encrypted, v.received_at, v.expires_at,
          v.mail_expires_at
        FROM aliases a
@@ -552,7 +552,7 @@ app.post('/api/query/batch', async (req, res, next) => {
       const message = alias.message_id ? {
         id: alias.message_id,
         code: decrypt(alias.code_encrypted),
-        sender: alias.sender,
+        sender: publicSenderName(alias.sender),
         subject: alias.subject,
         folders: Array.isArray(alias.mailbox_paths) ? alias.mailbox_paths : [],
         receivedAt: alias.received_at,
@@ -560,6 +560,7 @@ app.post('/api/query/batch', async (req, res, next) => {
       } : null;
       return {
         index,
+        address: alias.address,
         status: message ? 'received' : 'waiting',
         message
       };
@@ -800,11 +801,18 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
     pool.query(`SELECT id, sender, subject, mailbox_paths, recipient_headers, received_at FROM unmatched_messages ORDER BY received_at DESC LIMIT 30`),
     pool.query(`SELECT actor, action, target, detail, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 100`),
     pool.query(`SELECT
-      COUNT(*) FILTER (WHERE action = 'query_success' AND created_at >= CURRENT_DATE)::int AS queries_today,
-      COUNT(*) FILTER (WHERE action = 'query_failed' AND created_at >= CURRENT_DATE)::int AS query_failures_today,
-      COUNT(*) FILTER (WHERE action = 'totp_converted' AND created_at >= CURRENT_DATE)::int AS totp_conversions_today,
-      COUNT(*) FILTER (WHERE action = 'login_failed' AND created_at >= CURRENT_DATE)::int AS login_failures_today
-      FROM audit_logs`),
+      (SELECT COUNT(*) FROM audit_logs WHERE action = 'query_success' AND created_at >= CURRENT_DATE)::int AS queries_today,
+      (SELECT COUNT(*) FROM audit_logs WHERE action = 'query_failed' AND created_at >= CURRENT_DATE)::int AS query_failures_today,
+      (SELECT COUNT(*) FROM audit_logs WHERE action = 'totp_converted' AND created_at >= CURRENT_DATE)::int AS totp_conversions_today,
+      (SELECT COUNT(*) FROM audit_logs WHERE action = 'login_failed' AND created_at >= CURRENT_DATE)::int AS login_failures_today,
+      (SELECT COUNT(*) FROM mail_messages WHERE received_at >= CURRENT_DATE AND received_at < CURRENT_DATE + INTERVAL '1 day')::int AS mail_received_today,
+      (SELECT COUNT(*) FROM mail_messages WHERE received_at >= CURRENT_DATE - INTERVAL '1 day' AND received_at < CURRENT_DATE)::int AS mail_received_yesterday,
+      (SELECT COUNT(*) FROM aliases WHERE enabled = TRUE)::int AS active_aliases,
+      (SELECT COUNT(*) FROM aliases WHERE created_at >= CURRENT_DATE - INTERVAL '6 days')::int AS aliases_created_last_7_days,
+      (SELECT COUNT(*) FROM mail_messages WHERE code_encrypted IS NOT NULL AND received_at >= CURRENT_DATE AND received_at < CURRENT_DATE + INTERVAL '1 day')::int AS codes_extracted_today,
+      (SELECT COUNT(*) FROM mail_messages WHERE code_encrypted IS NOT NULL AND received_at >= CURRENT_DATE - INTERVAL '1 day' AND received_at < CURRENT_DATE)::int AS codes_extracted_yesterday,
+      (SELECT COUNT(*) FROM totp_entries)::int AS totp_accounts,
+      (SELECT COUNT(*) FROM totp_entries WHERE created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day')::int AS totp_created_today`),
     pool.query(
       `SELECT service, status, detail, heartbeat_at,
         heartbeat_at > NOW() - ($1::text || ' seconds')::interval AS fresh
