@@ -96,15 +96,15 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.doesNotMatch(script, /已转换并同步到管理后台/);
   assert.match(html, /id="totp-view"/);
-  assert.match(html, /styles\.css\?v=20260816-3/);
+  assert.match(html, /styles\.css\?v=20260816-4/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260816-1/);
+  assert.match(html, /query\.js\?v=20260816-2/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
   assert.doesNotMatch(html, /id="totp-token"/);
   assert.match(script, /request\('\/api\/query', \{/);
-  assert.match(script, /limit: 40/);
+  assert.match(script, /limit: mailState\.filter === 'code' \? 1 : 40/);
   assert.match(script, /request\('\/api\/query\/totp', \{ entries \}\)/);
   assert.match(script, /const activeTotps = new Map\(\)/);
   assert.match(script, /function renderTotpAvatar/);
@@ -119,6 +119,7 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   const server = fs.readFileSync('src/server.js', 'utf8');
   const html = fs.readFileSync('public/index.html', 'utf8');
   const script = fs.readFileSync('public/query.js', 'utf8');
+  const styles = fs.readFileSync('public/styles.css', 'utf8');
   const batchRoute = server.slice(server.indexOf("app.post('/api/query/batch'"), server.indexOf("app.post('/api/query/batch-inbox'"));
 
   assert.match(batchRoute, /req\.body\.tokens\.length > 50/);
@@ -138,11 +139,17 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   assert.match(html, /data-public-view="batch"/);
   assert.match(html, /id="mail-batch-tokens"/);
   assert.match(html, /id="mail-batch-result"/);
+  assert.match(html, /id="single-code-result"/);
   assert.match(script, /requestBatchTokens\('\/api\/query\/batch', tokens\)/);
   assert.match(script, /item\.address \|\| `查询项 \$\{item\.index \+ 1\}`/);
   assert.match(script, /splitQueryTokens\(tokens\)/);
   assert.match(script, /setTimeout\(\(\) => refreshMailBatch\(\)/);
   assert.match(script, /let activeMailBatchTokens = \[\]/);
+  assert.match(script, /function renderSingleCodeResult\(message, mailbox\)/);
+  assert.match(script, /class="batch-result-toolbar"[\s\S]*?id="refresh-mail-batch"[\s\S]*?class="batch-result-scroll"/);
+  assert.match(styles, /\.batch-result-toolbar \{[\s\S]*?flex: 0 0 auto/);
+  assert.match(styles, /\.batch-result-scroll \{[\s\S]*?overflow-y: auto/);
+  assert.match(styles, /\.single-code-card \{[\s\S]*?min-height: 220px/);
   assert.doesNotMatch(script, /localStorage|sessionStorage/);
 });
 

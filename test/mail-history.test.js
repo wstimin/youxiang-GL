@@ -82,7 +82,7 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
   assert.match(script, /cursor: reset \? null : mailState\.cursor/);
-  assert.match(script, /limit: 40/);
+  assert.match(script, /limit: mailState\.filter === 'code' \? 1 : 40/);
   assert.match(script, /request\('\/api\/query\/message'/);
   assert.match(script, /querySelector\('\.public-detail-body'\)\.textContent = detail\.body/);
   assert.doesNotMatch(script, /<dt>收件人<\/dt>|detail\.recipients/);
@@ -92,9 +92,10 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /mailboxAddress/);
   assert.match(script, /scheduleMailRefresh/);
   assert.doesNotMatch(script, /data\.mode === 'code'|mailState\.mode|function renderCodeMessage/);
-  assert.match(script, /function renderCodeItem\(message\)/);
+  assert.match(script, /function renderCodeItem\(message, address/);
   assert.match(script, /data-copy-mail-code/);
-  assert.match(script, /mailState\.filter === 'code' \? renderCodeItem : renderMessageItem/);
+  assert.match(script, /renderSingleCodeResult\(messages\[0\] \|\| null, data\.mailbox\)/);
+  assert.doesNotMatch(script, /messages\.map\(mailState\.filter === 'code' \? renderCodeItem : renderMessageItem\)/);
   assert.doesNotMatch(script, /detail\.body[^\n]*innerHTML/);
   assert.match(script, /邮件内容/);
   assert.doesNotMatch(script, /formatFolders\(message\.folders\)|formatFolders\(detail\.folders\)|所在文件夹/);

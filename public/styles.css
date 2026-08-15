@@ -2136,29 +2136,51 @@ tr:last-child td { border-bottom: 0; }
 }
 .public-app[data-primary-panel="code"] .single-code-result-head { display: flex; }
 .public-app[data-primary-panel="code"] #mail-placeholder,
-.public-app[data-primary-panel="code"] #mail-list-pane.code-mode {
+.public-app[data-primary-panel="code"] #single-code-result {
   grid-row: 2;
   min-height: 0;
   height: 100%;
 }
-.public-app[data-primary-panel="code"] #mail-list-pane.code-mode { overflow: auto; }
-.public-app[data-primary-panel="code"] #mail-message-list {
-  min-height: 100%;
-  display: grid;
-  align-content: center;
+.public-app[data-primary-panel="code"] #single-code-result {
+  min-width: 0;
+  padding: 28px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
 }
-.public-app[data-primary-panel="code"] .public-code-item {
-  width: calc(100% - 56px);
+.single-code-card {
+  width: 100%;
   max-width: 580px;
-  min-height: 330px;
-  margin: 28px auto;
-  padding: 36px;
-  align-content: center;
-  border-color: #d9e4f5;
-  background: linear-gradient(145deg, #fbfcff, #f3f7ff);
+  min-height: 220px;
+  margin: 0;
+  align-self: flex-start;
 }
-.public-app[data-primary-panel="code"] .public-code-main { gap: 18px; }
-.public-app[data-primary-panel="code"] .public-code-value { font-size: 42px; }
+.single-code-card .batch-row-index .icon { width: 16px; height: 16px; }
+.single-code-card .batch-result-code time { color: var(--design-muted); font-size: 11px; }
+
+.batch-result-toolbar {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--design-border);
+  background: #fff;
+}
+.batch-result-toolbar .batch-result-meta { padding: 0; border: 0; }
+.batch-result-toolbar .batch-refresh-note {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.batch-result-scroll {
+  min-width: 0;
+  min-height: 0;
+  padding-top: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 
 #batch-view .public-tool-layout,
 #totp-view .public-totp-layout {
@@ -2252,9 +2274,12 @@ tr:last-child td { border-bottom: 0; }
   .public-app[data-view="batch"] #mail-batch-result {
     min-height: 0;
     flex: 1 1 auto;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .public-app[data-view="batch"] #mail-batch-result .batch-result-scroll {
+    flex: 1 1 auto;
     padding-right: 6px;
   }
 }
@@ -2507,7 +2532,9 @@ tr:last-child td { border-bottom: 0; }
   #batch-view .design-card-stack > .card,
   #totp-view .design-card-stack > .card { padding: 20px 16px; }
   .single-code-result-head { padding-inline: 18px; }
-  .public-app[data-primary-panel="code"] .public-code-item { width: calc(100% - 24px); min-height: 280px; padding: 22px 16px; }
+  .public-app[data-primary-panel="code"] #single-code-result { padding: 20px 16px; }
+  .single-code-card { min-height: 200px; padding: 16px; }
+  .batch-result-toolbar .batch-refresh-note { align-items: stretch; }
   .public-app[data-primary-panel="email"] #mail-view.has-results .mail-query-form .form-row { grid-template-columns: minmax(0, 1fr) auto; }
   .public-app[data-primary-panel="email"] #mail-view.has-results .mail-change-action .btn { width: 42px; padding: 0; }
   .public-app[data-primary-panel="email"] #mail-view.has-results .mail-change-action .btn span { display: none; }

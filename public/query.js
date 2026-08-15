@@ -87,6 +87,7 @@ const singleMailboxStatus = document.querySelector('#single-mailbox-status');
 const mailBackMailboxButton = document.querySelector('#mail-back-mailbox');
 const singleCodeMailbox = document.querySelector('#single-code-mailbox');
 const singleCodeState = document.querySelector('#single-code-state');
+const singleCodeResult = document.querySelector('#single-code-result');
 
 const activeTotps = new Map();
 const mailState = {
@@ -224,7 +225,17 @@ async function pollForNewMail(refreshSeconds = 60) {
     });
     if (token !== mailState.token || requestId !== mailState.requestId || inboxWorkspace.dataset.view !== 'mail') return;
     updateMailbox(data);
-    const latestId = Number(data.messages?.[0]?.id || 0) || null;
+    const latestMessage = data.messages?.[0] || null;
+    const latestId = Number(latestMessage?.id || 0) || null;
+    if (mailState.filter === 'code') {
+      renderSingleCodeResult(latestMessage, data.mailbox);
+      mailState.latestId = latestId;
+      mailState.lastRefreshAt = new Date().toISOString();
+      setRefreshLabel();
+      renderIcons();
+      scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || refreshSeconds));
+      return;
+    }
     if (mailState.latestId && latestId && latestId !== mailState.latestId) {
       newMailBanner.classList.remove('hidden');
       renderIcons();
@@ -283,7 +294,7 @@ function selectAccessMail(filter = 'all') {
 
 function updateMailFilterUi() {
   const codeOnly = mailState.filter === 'code';
-  const resultsVisible = mailPlaceholder.classList.contains('hidden');
+  const resultsVisible = mailView.classList.contains('has-results');
   mailListTitle.textContent = codeOnly ? '验证码接收结果' : '收件箱';
   mailCurrentMode.textContent = codeOnly ? '验证码' : '完整邮箱';
   mailFormTitle.textContent = codeOnly ? '单个验证码接收' : '单个邮箱查询';
@@ -301,20 +312,24 @@ function updateMailFilterUi() {
   emptyDescription.textContent = codeOnly ? '验证码邮件到达后会自动显示。' : '可以刷新或修改搜索条件。';
   mailPlaceholder.querySelector('strong').textContent = codeOnly ? '等待接收验证码' : '邮箱结果显示在这里';
   mailPlaceholder.querySelector('span:last-child').textContent = codeOnly ? '输入查询密钥后，最新有效验证码会显示在这里。' : '输入查询密钥后，可以查看最近 7 天的收件箱。';
-  mailListPane.classList.toggle('code-mode', resultsVisible && codeOnly);
+  singleCodeResult.classList.toggle('hidden', !resultsVisible || !codeOnly);
+  mailListPane.classList.toggle('hidden', !resultsVisible || codeOnly);
+  mailListPane.classList.remove('code-mode');
   mailDetail.classList.toggle('hidden', !resultsVisible || codeOnly);
   singleMailboxPane.classList.toggle('hidden', !resultsVisible || codeOnly);
   mailResultsPane.classList.toggle('single-mail-workspace', resultsVisible && !codeOnly);
 }
 
 function setMailResultsVisible(visible) {
+  const codeOnly = mailState.filter === 'code';
   mailView.classList.toggle('has-results', visible);
   mailPlaceholder.classList.toggle('hidden', visible);
-  mailListPane.classList.toggle('hidden', !visible);
-  mailDetail.classList.toggle('hidden', !visible || mailState.filter === 'code');
-  mailListPane.classList.toggle('code-mode', visible && mailState.filter === 'code');
-  singleMailboxPane.classList.toggle('hidden', !visible || mailState.filter === 'code');
-  mailResultsPane.classList.toggle('single-mail-workspace', visible && mailState.filter !== 'code');
+  singleCodeResult.classList.toggle('hidden', !visible || !codeOnly);
+  mailListPane.classList.toggle('hidden', !visible || codeOnly);
+  mailDetail.classList.toggle('hidden', !visible || codeOnly);
+  mailListPane.classList.remove('code-mode');
+  singleMailboxPane.classList.toggle('hidden', !visible || codeOnly);
+  mailResultsPane.classList.toggle('single-mail-workspace', visible && !codeOnly);
   mailResultsPane.classList.remove('show-messages', 'show-detail');
 }
 
@@ -334,27 +349,31 @@ function renderMessageItem(message) {
   </button>`;
 }
 
-function renderCodeItem(message) {
-  return `<article class="public-code-item">
-    <div class="public-code-main">
-      <div class="public-message-row"><span class="public-sender"><span class="public-sender-avatar">${escapeHtml(String(message.sender || '?').trim().charAt(0).toUpperCase() || '?')}</span><strong>${escapeHtml(message.sender || '未知发件人')}</strong></span><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt, true))}</time></div>
-      <strong class="public-code-value">${escapeHtml(message.code || message.codeMasked || '------')}</strong>
-      <span class="public-code-subject">${escapeHtml(message.subject || '验证码邮件')}</span>
-    </div>
-    <button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>
-  </article>`;
+function renderCodeItem(message, address = '授权邮箱') {
+  const received = Boolean(message?.code || message?.codeMasked);
+  return `<section class="batch-result-row ${received ? 'batch-received' : 'batch-waiting'} single-code-card">
+    <div class="batch-result-identity"><span class="batch-row-index"><i data-lucide="mail" class="icon"></i></span><div><strong>${escapeHtml(address)}</strong><small>验证码对应邮箱</small></div></div>
+    <div class="batch-result-state">${received ? '<span class="batch-status received"><span></span>已收到</span>' : '<span class="batch-status waiting"><span></span>等待中</span>'}</div>
+    <div class="batch-result-code">${received
+      ? `<strong>${escapeHtml(message.code || message.codeMasked)}</strong><small>发件人：${escapeHtml(message.sender || '未知发件人')}</small><time datetime="${escapeHtml(message.receivedAt)}">${escapeHtml(formatMailDate(message.receivedAt, true))}</time>`
+      : '<strong>------</strong><small>等待最新验证码</small>'}</div>
+    <div class="batch-result-action">${received ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-mail-code="${message.id}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
+  </section>`;
+}
+
+function renderSingleCodeResult(message, mailbox) {
+  const address = mailbox?.address || '授权邮箱';
+  singleCodeResult.innerHTML = renderCodeItem(message, address);
+  singleCodeMailbox.textContent = address;
+  singleCodeState.className = `batch-inbox-state ${message ? 'ready' : 'empty'}`;
+  singleCodeState.innerHTML = `<span></span>${message ? '已收到' : '等待中'}`;
+  const copyButton = singleCodeResult.querySelector('[data-copy-mail-code]');
+  if (copyButton) copyButton.addEventListener('click', async () => {
+    try { await copyCode(message.code || message.codeMasked, '验证码已复制'); } catch (_error) { mailErrorBox.textContent = '复制失败，请手动输入验证码'; }
+  });
 }
 
 function bindMessageItems(messages) {
-  if (mailState.filter === 'code') {
-    for (const message of messages) {
-      const button = mailMessageList.querySelector(`[data-copy-mail-code="${message.id}"]`);
-      if (button) button.addEventListener('click', async () => {
-        try { await copyCode(message.code, '验证码已复制'); } catch (_error) { mailListStatus.textContent = '复制失败，请手动输入验证码'; }
-      });
-    }
-    return;
-  }
   for (const message of messages) {
     const button = mailMessageList.querySelector(`[data-message-id="${message.id}"]`);
     if (button) button.addEventListener('click', () => openMailMessage(message, button));
@@ -392,16 +411,22 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     const data = await request('/api/query', {
       token,
       cursor: reset ? null : mailState.cursor,
-      limit: 40,
+      limit: mailState.filter === 'code' ? 1 : 40,
       keyword: mailState.keyword,
       status: mailState.filter === 'code' ? 'code' : ''
     });
     if (requestId !== mailState.requestId) return false;
     const messages = Array.isArray(data.messages) ? data.messages : [];
+    const codeOnly = mailState.filter === 'code';
     updateMailbox(data);
-    mailMessageList.insertAdjacentHTML('beforeend', messages.map(mailState.filter === 'code' ? renderCodeItem : renderMessageItem).join(''));
-    bindMessageItems(messages);
-    mailState.cursor = data.nextCursor || null;
+    if (codeOnly) {
+      renderSingleCodeResult(messages[0] || null, data.mailbox);
+      mailState.cursor = null;
+    } else {
+      mailMessageList.insertAdjacentHTML('beforeend', messages.map(renderMessageItem).join(''));
+      bindMessageItems(messages);
+      mailState.cursor = data.nextCursor || null;
+    }
     if (reset) {
       mailState.latestId = Number(messages[0]?.id || 0) || null;
       newMailBanner.classList.add('hidden');
@@ -422,7 +447,7 @@ async function loadMessages({ reset = false, unlock = false } = {}) {
     if (requestId === mailState.requestId) {
       mailState.loading = false;
       refreshMailButton.disabled = false;
-      updateMailListState(mailMessageList.children.length);
+      if (mailState.filter !== 'code') updateMailListState(mailMessageList.children.length);
     }
   }
 }
@@ -493,16 +518,21 @@ function renderMailBatch(data) {
   const received = data.results.filter((item) => item.status === 'received').length;
   const waiting = data.results.filter((item) => item.status === 'waiting').length;
   const invalid = data.results.filter((item) => item.status === 'invalid' || item.status === 'invalid_format').length;
+  const previousScrollTop = mailBatchResultBox.querySelector('.batch-result-scroll')?.scrollTop || 0;
   mailBatchPlaceholder.classList.add('hidden');
   mailBatchResultBox.classList.remove('hidden');
-  mailBatchResultBox.innerHTML = `<div class="result-meta batch-result-meta"><strong>接收结果（全部展开）</strong><span>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</span></div>
-    <div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
+  mailBatchResultBox.innerHTML = `<div class="batch-result-toolbar">
+      <div class="result-meta batch-result-meta"><strong>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</strong><span>共 ${data.results.length} 个查询结果</span></div>
+      <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的结果</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>
+    </div>
+    <div class="batch-result-scroll"><div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
       <div class="batch-result-identity"><span class="batch-row-index">${item.index + 1}</span><div><strong>${escapeHtml(item.address || `查询项 ${item.index + 1}`)}</strong><small>${item.address ? '验证码对应邮箱' : '独立查询密钥'}</small></div></div>
       <div class="batch-result-state">${mailBatchStatus(item)}</div>
       <div class="batch-result-code">${item.message ? `<strong>${escapeHtml(item.message.code)}</strong><small>发件人：${escapeHtml(item.message.sender || '未知发件人')}</small>` : `<strong>------</strong><small>${item.status === 'invalid_format' ? '请使用 cv_ 密钥或邮箱--密钥格式' : item.status === 'invalid' ? '查询密钥不存在或已失效' : '等待最新验证码'}</small>`}</div>
       <div class="batch-result-action">${item.message ? `<button class="btn btn-secondary btn-icon" type="button" data-copy-batch-code="${item.index}" title="复制验证码" aria-label="复制验证码"><i data-lucide="copy" class="icon"></i></button>` : ''}</div>
-    </section>`).join('')}</div>
-    <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的结果</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>`;
+    </section>`).join('')}</div></div>`;
+  const resultScroll = mailBatchResultBox.querySelector('.batch-result-scroll');
+  resultScroll.scrollTop = Math.min(previousScrollTop, Math.max(0, resultScroll.scrollHeight - resultScroll.clientHeight));
   mailBatchResultBox.querySelectorAll('[data-copy-batch-code]').forEach((button) => button.addEventListener('click', () => {
     const item = data.results[Number(button.dataset.copyBatchCode)];
     if (item?.message) copyCode(item.message.code, '验证码已复制');
@@ -516,6 +546,8 @@ function renderMailBatch(data) {
 async function refreshMailBatch() {
   if (mailBatchRefreshInFlight || !activeMailBatchTokens.length) return;
   mailBatchRefreshInFlight = true;
+  const refreshButton = mailBatchResultBox.querySelector('#refresh-mail-batch');
+  if (refreshButton) refreshButton.disabled = true;
   mailBatchErrorBox.textContent = '';
   try {
     renderMailBatch(await requestBatchTokens('/api/query/batch', activeMailBatchTokens));
@@ -524,6 +556,8 @@ async function refreshMailBatch() {
     mailBatchErrorBox.textContent = error.message;
   } finally {
     mailBatchRefreshInFlight = false;
+    const currentRefreshButton = mailBatchResultBox.querySelector('#refresh-mail-batch');
+    if (currentRefreshButton) currentRefreshButton.disabled = false;
   }
 }
 
@@ -899,6 +933,7 @@ changeMailboxButton.addEventListener('click', () => {
   mailSearchInput.value = '';
   clearMailSearchButton.classList.add('hidden');
   mailMessageList.replaceChildren();
+  singleCodeResult.replaceChildren();
   setMailResultsVisible(false);
   updateMailFilterUi();
   mailTotalCount.textContent = '0';
