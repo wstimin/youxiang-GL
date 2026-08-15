@@ -2,6 +2,13 @@
 
 const state = { data: null, csrfToken: '', importPollTimer: null, activeSection: 'overview' };
 const inbox = { accountId: '', cursor: '', accountPage: 1, accountHasMore: false, messageHasMore: false, loading: false };
+const adminPagination = {
+  accounts: { page: 1, pageSize: 8 },
+  aliases: { page: 1, pageSize: 8 },
+  unmatched: { page: 1, pageSize: 6 },
+  overviewAudit: { page: 1, pageSize: 6 },
+  securityAudit: { page: 1, pageSize: 10 }
+};
 const modalRoot = document.querySelector('#modal-root');
 const toast = document.querySelector('#toast');
 
@@ -90,6 +97,46 @@ function empty(text) { return `<div class="empty">${escapeHtml(text)}</div>`; }
 function table(headers, rows) {
   if (!rows.length) return empty('暂无记录');
   return `<table><thead><tr>${headers.map((header) => `<th>${header}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+
+function pagedRows(key, rows) {
+  const pagination = adminPagination[key];
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pagination.pageSize));
+  pagination.page = Math.min(Math.max(1, pagination.page), totalPages);
+  const start = (pagination.page - 1) * pagination.pageSize;
+  return { rows: rows.slice(start, start + pagination.pageSize), total, totalPages, page: pagination.page };
+}
+
+function paginationPages(page, totalPages) {
+  const pages = new Set([1, totalPages, page - 1, page, page + 1]);
+  return [...pages].filter((value) => value >= 1 && value <= totalPages).sort((a, b) => a - b);
+}
+
+function renderPagination(targetId, key, result) {
+  const target = document.querySelector(`#${targetId}`);
+  if (!target) return;
+  if (!result.total) {
+    target.innerHTML = '';
+    target.classList.add('hidden');
+    return;
+  }
+  const pages = paginationPages(result.page, result.totalPages);
+  let previousPage = 0;
+  const pageButtons = pages.map((page) => {
+    const gap = previousPage && page - previousPage > 1 ? '<span class="pagination-ellipsis">…</span>' : '';
+    previousPage = page;
+    return `${gap}<button class="pagination-page${page === result.page ? ' active' : ''}" type="button" data-admin-pagination="${key}" data-admin-page="${page}" ${page === result.page ? 'aria-current="page"' : ''}>${page}</button>`;
+  }).join('');
+  target.classList.remove('hidden');
+  target.innerHTML = `<span class="pagination-summary">第 <strong>${result.page}</strong> / ${result.totalPages} 页 · 共 ${result.total} 条</span><div class="pagination-actions"><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${result.page - 1}" title="上一页" aria-label="上一页" ${result.page <= 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="icon"></i></button><div class="pagination-pages">${pageButtons}</div><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${result.page + 1}" title="下一页" aria-label="下一页" ${result.page >= result.totalPages ? 'disabled' : ''}><i data-lucide="chevron-right" class="icon"></i></button></div>`;
+}
+
+function renderPagedTable({ key, tableId, paginationId, headers, rows, rowRenderer }) {
+  const result = pagedRows(key, rows);
+  document.querySelector(`#${tableId}`).innerHTML = table(headers, result.rows.map(rowRenderer));
+  renderPagination(paginationId, key, result);
+  return result;
 }
 
 function badge(status, enabled = true) {
@@ -380,20 +427,32 @@ function render() {
   document.querySelector('#overview-recent').innerHTML = table(['邮箱', '文件夹', '发件人', '主题', '收到时间'], recentRows);
   const legacyMessageTable = document.querySelector('#messages-table');
   if (legacyMessageTable) legacyMessageTable.innerHTML = table(['邮箱', '发件人', '主题', '收到时间'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(senderDisplayName(row.sender))}</td><td>${escapeHtml(row.subject)}</td><td>${formatDate(row.received_at)}</td></tr>`));
-  document.querySelector('#unmatched-table').innerHTML = table(['文件夹', '发件人', '主题', '收件信息', '收到时间'], data.unmatched.map((row) => `<tr><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(senderDisplayName(row.sender))}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>`));
-  document.querySelector('#audit-table').innerHTML = table(['操作者', '操作', '对象/详情', '时间'], data.audit.slice(0, 12).map((row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>`));
-  document.querySelector('#security-audit-table').innerHTML = table(['操作者', '操作', '对象/详情', '时间'], data.audit.filter((row) => /login|session|password|secret|totp|mail_account/.test(row.action)).slice(0, 20).map((row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>`));
+  renderPagedTable({ key: 'unmatched', tableId: 'unmatched-table', paginationId: 'unmatched-pagination', headers: ['文件夹', '发件人', '主题', '收件信息', '收到时间'], rows: data.unmatched, rowRenderer: (row) => `<tr><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(senderDisplayName(row.sender))}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>` });
+  renderPagedTable({ key: 'overviewAudit', tableId: 'audit-table', paginationId: 'overview-audit-pagination', headers: ['操作者', '操作', '对象/详情', '时间'], rows: data.audit, rowRenderer: (row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>` });
+  const securityAuditRows = data.audit.filter((row) => /login|session|password|secret|totp|mail_account/.test(row.action));
+  renderPagedTable({ key: 'securityAudit', tableId: 'security-audit-table', paginationId: 'security-audit-pagination', headers: ['操作者', '操作', '对象/详情', '时间'], rows: securityAuditRows, rowRenderer: (row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>` });
 
-  document.querySelector('#accounts-table').innerHTML = table(['母邮箱地址', '服务商', '连接服务器', '状态', '最后同步', '操作'], filteredAccounts.map((row) => `<tr><td><div class="table-primary"><span class="provider-mark tone-${inferMailProvider(row)}"><i data-lucide="mail"></i></span><div><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<small class="danger-text">${escapeHtml(mailErrorLabel(row.last_error))}</small>` : '<small>IMAP 接收账户</small>'}</div></div></td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td><span class="mono-value">${escapeHtml(row.host)}:${row.port}</span></td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
-  document.querySelector('#aliases-table').innerHTML = table(['子邮箱地址', '备注', '查询密钥', '状态', '最近收信', '操作'], filteredAliases.map((row) => `<tr><td><div class="table-primary"><span class="alias-mark">@</span><div><strong>${escapeHtml(row.address)}</strong><small>${escapeHtml(data.accounts.find((account) => String(account.id) === String(row.mail_account_id))?.email || '未关联母邮箱')}</small></div></div></td><td>${escapeHtml(row.label || '-')}</td><td><span class="mono-value">末六位 ${escapeHtml(row.token_hint || '-')}</span>${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑子邮箱" aria-label="编辑子邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除子邮箱" aria-label="删除子邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
+  renderPagedTable({ key: 'accounts', tableId: 'accounts-table', paginationId: 'accounts-pagination', headers: ['母邮箱地址', '服务商', '连接服务器', '状态', '最后同步', '操作'], rows: filteredAccounts, rowRenderer: (row) => `<tr><td><div class="table-primary"><span class="provider-mark tone-${inferMailProvider(row)}"><i data-lucide="mail"></i></span><div><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<small class="danger-text">${escapeHtml(mailErrorLabel(row.last_error))}</small>` : '<small>IMAP 接收账户</small>'}</div></div></td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td><span class="mono-value">${escapeHtml(row.host)}:${row.port}</span></td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
+  renderPagedTable({ key: 'aliases', tableId: 'aliases-table', paginationId: 'aliases-pagination', headers: ['子邮箱地址', '备注', '查询密钥', '状态', '最近收信', '操作'], rows: filteredAliases, rowRenderer: (row) => `<tr><td><div class="table-primary"><span class="alias-mark">@</span><div><strong>${escapeHtml(row.address)}</strong><small>${escapeHtml(data.accounts.find((account) => String(account.id) === String(row.mail_account_id))?.email || '未关联母邮箱')}</small></div></div></td><td>${escapeHtml(row.label || '-')}</td><td><span class="mono-value">末六位 ${escapeHtml(row.token_hint || '-')}</span>${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑子邮箱" aria-label="编辑子邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除子邮箱" aria-label="删除子邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
   document.querySelector('#totp-entries-table').innerHTML = table(['平台', '账号', '密钥提示', '来源', '最近使用', '操作'], filteredTotps.map((row) => `<tr><td><div class="admin-totp-platform">${renderTotpAvatar(row.issuer)}<strong>${escapeHtml(row.issuer || '未命名平台')}</strong></div></td><td>${escapeHtml(row.account_name || '-')}</td><td>末四位 ${escapeHtml(row.secret_hint || '-')}</td><td>${row.legacy_alias_address ? `由旧配置迁移<br><small class="muted">${escapeHtml(row.legacy_alias_address)}</small>` : '前端直接添加'}</td><td>${formatDate(row.last_used_at || row.created_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-totp-edit="${row.id}" title="编辑 2FA 备注" aria-label="编辑 2FA 备注"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-totp-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥与验证码</span></button><button class="btn btn-danger btn-icon" title="删除 2FA" aria-label="删除 2FA" data-totp-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
   document.querySelector('#sessions-table').innerHTML = table(['设备', '登录时间', '过期时间', '状态', '操作'], data.sessions.map((row) => `<tr><td><strong>${escapeHtml(sessionDevice(row.user_agent))}</strong></td><td>${formatDate(row.created_at)}</td><td>${formatDate(row.expires_at)}</td><td>${row.current ? '<span class="badge">当前会话</span>' : '<span class="badge off">其他会话</span>'}</td><td>${row.current ? '<span class="muted">正在使用</span>' : `<button class="btn btn-danger" data-session-revoke="${row.session_id}">退出此设备</button>`}</td></tr>`));
 
   document.querySelector('#totp-status').textContent = data.admin.totpEnabled ? 'TOTP 动态验证码已启用，管理员登录需要密码和六位动态码。' : 'TOTP 尚未启用，管理员登录目前只使用密码。';
   document.querySelector('#setup-totp').classList.toggle('hidden', data.admin.totpEnabled);
   bindRowActions();
+  bindPaginationActions();
   lucide.createIcons();
   if (document.querySelector('#messages')?.classList.contains('active')) loadInbox().catch(() => {});
+}
+
+function bindPaginationActions() {
+  document.querySelectorAll('[data-admin-pagination][data-admin-page]').forEach((button) => button.addEventListener('click', () => {
+    const pagination = adminPagination[button.dataset.adminPagination];
+    const nextPage = Number.parseInt(button.dataset.adminPage, 10);
+    if (!pagination || !Number.isSafeInteger(nextPage) || nextPage < 1 || nextPage === pagination.page) return;
+    pagination.page = nextPage;
+    render();
+  }));
 }
 
 function renderInboxMailboxes(accounts) {
@@ -815,6 +874,7 @@ function runOverviewAction(action) {
     document.querySelector('#alias-search').value = '';
     document.querySelector('#alias-account-filter').value = '';
     document.querySelector('#alias-status-filter').value = 'enabled';
+    adminPagination.aliases.page = 1;
     render();
     activateAdminSection('aliases');
     return;
@@ -885,6 +945,8 @@ function renderGlobalSearch(query) {
     if (button.dataset.searchSection === 'messages') {
       activateAdminSection('messages');
     } else {
+      if (button.dataset.searchSection === 'mailboxes') adminPagination.accounts.page = 1;
+      if (button.dataset.searchSection === 'aliases') adminPagination.aliases.page = 1;
       if (state.data) render();
       activateAdminSection(button.dataset.searchSection);
     }
@@ -916,7 +978,11 @@ document.querySelector('#message-code-only')?.addEventListener('change', () => {
 ['account-search', 'alias-search', 'alias-account-filter', 'alias-status-filter', 'totp-search'].forEach((id) => {
   const element = document.querySelector(`#${id}`);
   const eventName = element?.tagName === 'SELECT' ? 'change' : 'input';
-  element?.addEventListener(eventName, () => state.data && render());
+  element?.addEventListener(eventName, () => {
+    if (id === 'account-search') adminPagination.accounts.page = 1;
+    if (['alias-search', 'alias-account-filter', 'alias-status-filter'].includes(id)) adminPagination.aliases.page = 1;
+    if (state.data) render();
+  });
 });
 document.querySelector('#global-search')?.addEventListener('input', (event) => renderGlobalSearch(event.target.value));
 document.querySelector('#global-search')?.addEventListener('focus', (event) => renderGlobalSearch(event.target.value));

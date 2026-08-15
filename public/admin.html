@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>mail管理</title>
   <link rel="icon" type="image/svg+xml" href="/assets/mail-favicon.svg?v=20260815-1">
-  <link rel="stylesheet" href="/assets/admin-design.css?v=20260814-11">
+  <link rel="stylesheet" href="/assets/admin-design.css?v=20260816-1">
 </head>
 <body>
   <div class="admin-shell">
@@ -89,8 +89,8 @@
             <div id="overview-recent" class="table-wrap"></div>
           </div>
           <div class="overview-grid overview-secondary-grid">
-            <div class="card"><div class="card-header"><div><h3>未匹配邮件</h3><span class="card-subtitle">无法归属到子邮箱的最近记录</span></div><span class="badge off">最近 30 条</span></div><div id="unmatched-table" class="table-wrap"></div></div>
-            <div id="overview-audit-panel" class="card overview-focus-panel" tabindex="-1"><div class="card-header"><div><h3>最近审计</h3><span class="card-subtitle">关键管理和查询操作</span></div><i data-lucide="scroll-text" class="card-header-icon"></i></div><div id="audit-table" class="table-wrap"></div></div>
+            <div class="card paged-card"><div class="card-header"><div><h3>未匹配邮件</h3><span class="card-subtitle">无法归属到子邮箱的最近记录</span></div><span class="badge off">最近 30 条</span></div><div id="unmatched-table" class="table-wrap paged-table-wrap"></div><div id="unmatched-pagination" class="admin-pagination" aria-live="polite"></div></div>
+            <div id="overview-audit-panel" class="card paged-card overview-focus-panel" tabindex="-1"><div class="card-header"><div><h3>最近审计</h3><span class="card-subtitle">关键管理和查询操作</span></div><i data-lucide="scroll-text" class="card-header-icon"></i></div><div id="audit-table" class="table-wrap paged-table-wrap"></div><div id="overview-audit-pagination" class="admin-pagination" aria-live="polite"></div></div>
           </div>
         </section>
 
@@ -99,10 +99,11 @@
             <div><h2>母邮箱管理</h2><p>统一管理 iCloud、Gmail 和 Outlook 接收账户。</p></div>
             <div class="head-actions"><button id="import-accounts" class="btn btn-secondary"><i data-lucide="file-up" class="icon"></i><span>批量接入</span></button><button id="add-account" class="btn btn-primary"><i data-lucide="plus" class="icon"></i><span>接入母邮箱</span></button></div>
           </div>
-          <div class="card management-card">
+          <div class="card management-card paged-card">
             <div class="card-header"><div><h3>母邮箱列表</h3><span class="card-subtitle">连接参数由服务器安全预设</span></div><span id="account-count" class="list-count"></span></div>
             <div class="management-toolbar"><div class="field search-field"><label class="sr-only" for="account-search">搜索母邮箱</label><i data-lucide="search" class="icon"></i><input id="account-search" type="search" placeholder="搜索邮箱地址、服务商或连接状态"></div></div>
-            <div id="accounts-table" class="table-wrap"></div>
+            <div id="accounts-table" class="table-wrap paged-table-wrap"></div>
+            <div id="accounts-pagination" class="admin-pagination" aria-live="polite"></div>
           </div>
         </section>
 
@@ -112,13 +113,14 @@
             <div class="head-actions"><button id="import-aliases" class="btn btn-secondary"><i data-lucide="upload" class="icon"></i><span>批量导入</span></button><button id="export-new-aliases" class="btn btn-secondary"><i data-lucide="download" class="icon"></i><span>导出新增</span></button><button id="export-all-aliases" class="btn btn-secondary"><i data-lucide="archive" class="icon"></i><span>导出全部</span></button><button id="add-alias" class="btn btn-primary"><i data-lucide="plus" class="icon"></i><span>添加子邮箱</span></button></div>
           </div>
           <div id="alias-stats" class="compact-stats"></div>
-          <div class="card management-card">
+          <div class="card management-card paged-card">
             <div class="card-header"><div><h3>子邮箱列表</h3><span class="card-subtitle">查询密钥仅在管理员确认后显示</span></div><span id="alias-count" class="list-count"></span></div>
             <div class="management-toolbar alias-toolbar">
               <div class="field search-field"><label class="sr-only" for="alias-search">搜索子邮箱</label><i data-lucide="search" class="icon"></i><input id="alias-search" type="search" placeholder="搜索子邮箱或备注"></div>
               <div class="toolbar-filters"><label class="field compact-field"><span class="sr-only">所属母邮箱</span><select id="alias-account-filter"><option value="">全部母邮箱</option></select></label><label class="field compact-field"><span class="sr-only">状态</span><select id="alias-status-filter"><option value="">全部状态</option><option value="enabled">已启用</option><option value="disabled">已停用</option></select></label></div>
             </div>
-            <div id="aliases-table" class="table-wrap"></div>
+            <div id="aliases-table" class="table-wrap paged-table-wrap"></div>
+            <div id="aliases-pagination" class="admin-pagination" aria-live="polite"></div>
           </div>
         </section>
 
@@ -154,7 +156,7 @@
             <div class="card security-card"><div class="card-header"><div><h3>修改登录密码</h3><span class="card-subtitle">更新后其他已登录设备将自动退出</span></div></div><div class="card-body"><form id="password-form" class="form-grid"><div class="field"><label for="current-password">当前密码</label><input id="current-password" type="password" autocomplete="current-password" required></div><div class="field"><label for="new-password">新密码</label><input id="new-password" type="password" minlength="8" autocomplete="new-password" required></div><div class="form-actions"><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>更新密码</span></button></div></form></div></div>
           </div>
           <div class="card"><div class="card-header"><div><h3>登录会话</h3><span class="card-subtitle">查看当前设备并退出不再使用的会话</span></div><button id="revoke-other-sessions" class="btn btn-secondary"><i data-lucide="log-out" class="icon"></i><span>退出其他设备</span></button></div><div id="sessions-table" class="table-wrap"></div></div>
-          <div class="card"><div class="card-header"><div><h3>安全审计</h3><span class="card-subtitle">最近的登录、密码查看和配置变更</span></div><i data-lucide="shield-check" class="card-header-icon"></i></div><div id="security-audit-table" class="table-wrap"></div></div>
+          <div class="card paged-card"><div class="card-header"><div><h3>安全审计</h3><span class="card-subtitle">最近的登录、密码查看和配置变更</span></div><i data-lucide="shield-check" class="card-header-icon"></i></div><div id="security-audit-table" class="table-wrap paged-table-wrap"></div><div id="security-audit-pagination" class="admin-pagination" aria-live="polite"></div></div>
         </section>
       </main>
     </div>
@@ -162,6 +164,6 @@
   <div id="modal-root"></div>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/admin.js?v=20260815-1"></script>
+  <script src="/assets/admin.js?v=20260816-1"></script>
 </body>
 </html>

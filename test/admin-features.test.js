@@ -50,8 +50,8 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-presence"/);
   assert.match(adminHtml, /id="unmatched-table"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(adminHtml, /admin\.js\?v=20260815-1/);
-  assert.match(adminHtml, /admin-design\.css\?v=20260814-11/);
+  assert.match(adminHtml, /admin\.js\?v=20260816-1/);
+  assert.match(adminHtml, /admin-design\.css\?v=20260816-1/);
   assert.doesNotMatch(adminHtml, /styles\.css/);
   assert.match(adminHtml, />管理中心</);
   assert.match(adminHtml, /<title>mail管理<\/title>/);
@@ -68,6 +68,22 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminDesign, /\.admin-avatar/);
   assert.match(adminDesign, /\.inbox-shell/);
   assert.match(adminDesign, /\.modal-backdrop/);
+});
+
+test('admin data-heavy cards paginate without extending the whole page', () => {
+  assert.match(admin, /const adminPagination = \{/);
+  assert.match(admin, /accounts: \{ page: 1, pageSize: 8 \}/);
+  assert.match(admin, /aliases: \{ page: 1, pageSize: 8 \}/);
+  assert.match(admin, /securityAudit: \{ page: 1, pageSize: 10 \}/);
+  assert.match(admin, /function renderPagedTable/);
+  assert.match(admin, /function bindPaginationActions/);
+  assert.match(adminHtml, /id="accounts-pagination"/);
+  assert.match(adminHtml, /id="aliases-pagination"/);
+  assert.match(adminHtml, /id="unmatched-pagination"/);
+  assert.match(adminHtml, /id="overview-audit-pagination"/);
+  assert.match(adminHtml, /id="security-audit-pagination"/);
+  assert.match(adminDesign, /\.admin-pagination \{/);
+  assert.match(adminDesign, /\.pagination-page\.active/);
 });
 
 test('overview cards and page actions expose existing admin functions', () => {

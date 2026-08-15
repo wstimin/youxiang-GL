@@ -518,12 +518,23 @@ function renderMailBatch(data) {
   const received = data.results.filter((item) => item.status === 'received').length;
   const waiting = data.results.filter((item) => item.status === 'waiting').length;
   const invalid = data.results.filter((item) => item.status === 'invalid' || item.status === 'invalid_format').length;
+  const refreshSeconds = Number(data.refreshAfterSeconds || 15);
   const previousScrollTop = mailBatchResultBox.querySelector('.batch-result-scroll')?.scrollTop || 0;
   mailBatchPlaceholder.classList.add('hidden');
   mailBatchResultBox.classList.remove('hidden');
   mailBatchResultBox.innerHTML = `<div class="batch-result-toolbar">
-      <div class="result-meta batch-result-meta"><strong>已收到 ${received} · 等待 ${waiting} · 无效 ${invalid}</strong><span>共 ${data.results.length} 个查询结果</span></div>
-      <div class="batch-refresh-note"><i data-lucide="refresh-cw" class="icon"></i><span>页面保持打开时自动刷新等待中的结果</span><button id="refresh-mail-batch" class="btn btn-secondary" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button></div>
+      <div class="batch-result-summary">
+        <div class="batch-summary-stats" aria-label="批量接收统计">
+          <div class="batch-summary-stat received"><span class="batch-summary-icon"><i data-lucide="circle-check" class="icon"></i></span><span><small>已收到</small><strong>${received}</strong></span></div>
+          <div class="batch-summary-stat waiting"><span class="batch-summary-icon"><i data-lucide="clock-3" class="icon"></i></span><span><small>等待中</small><strong>${waiting}</strong></span></div>
+          <div class="batch-summary-stat invalid"><span class="batch-summary-icon"><i data-lucide="circle-alert" class="icon"></i></span><span><small>无效</small><strong>${invalid}</strong></span></div>
+        </div>
+        <div class="batch-result-total"><i data-lucide="layers-3" class="icon"></i><span>共 <strong>${data.results.length}</strong> 个查询结果</span></div>
+      </div>
+      <div class="batch-result-controls">
+        <div class="batch-auto-refresh ${waiting ? 'active' : 'complete'}"><span class="batch-refresh-indicator"><i data-lucide="${waiting ? 'refresh-cw' : 'badge-check'}" class="icon"></i></span><span><strong>${waiting ? '自动刷新中' : '接收已完成'}</strong><small>${waiting ? `每 ${refreshSeconds} 秒检查等待中的邮箱` : '当前结果已全部更新'}</small></span></div>
+        <button id="refresh-mail-batch" class="btn btn-primary batch-refresh-button" type="button"><i data-lucide="refresh-cw" class="icon"></i><span>立即刷新</span></button>
+      </div>
     </div>
     <div class="batch-result-scroll"><div class="batch-result-list">${data.results.map((item) => `<section class="batch-result-row batch-${item.status}">
       <div class="batch-result-identity"><span class="batch-row-index">${item.index + 1}</span><div><strong>${escapeHtml(item.address || `查询项 ${item.index + 1}`)}</strong><small>${item.address ? '验证码对应邮箱' : '独立查询密钥'}</small></div></div>
@@ -540,14 +551,18 @@ function renderMailBatch(data) {
   document.querySelector('#refresh-mail-batch').addEventListener('click', refreshMailBatch);
   renderIcons();
   clearTimeout(mailBatchRefreshTimer);
-  if (waiting && inboxWorkspace.dataset.view === 'batch') mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), Number(data.refreshAfterSeconds || 15) * 1000);
+  if (waiting && inboxWorkspace.dataset.view === 'batch') mailBatchRefreshTimer = setTimeout(() => refreshMailBatch(), refreshSeconds * 1000);
 }
 
 async function refreshMailBatch() {
   if (mailBatchRefreshInFlight || !activeMailBatchTokens.length) return;
   mailBatchRefreshInFlight = true;
   const refreshButton = mailBatchResultBox.querySelector('#refresh-mail-batch');
-  if (refreshButton) refreshButton.disabled = true;
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.classList.add('is-refreshing');
+    refreshButton.querySelector('span').textContent = '刷新中';
+  }
   mailBatchErrorBox.textContent = '';
   try {
     renderMailBatch(await requestBatchTokens('/api/query/batch', activeMailBatchTokens));
@@ -557,7 +572,11 @@ async function refreshMailBatch() {
   } finally {
     mailBatchRefreshInFlight = false;
     const currentRefreshButton = mailBatchResultBox.querySelector('#refresh-mail-batch');
-    if (currentRefreshButton) currentRefreshButton.disabled = false;
+    if (currentRefreshButton) {
+      currentRefreshButton.disabled = false;
+      currentRefreshButton.classList.remove('is-refreshing');
+      currentRefreshButton.querySelector('span').textContent = '立即刷新';
+    }
   }
 }
 

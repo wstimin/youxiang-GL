@@ -96,9 +96,9 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.doesNotMatch(script, /已转换并同步到管理后台/);
   assert.match(html, /id="totp-view"/);
-  assert.match(html, /styles\.css\?v=20260816-4/);
+  assert.match(html, /styles\.css\?v=20260816-5/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260816-2/);
+  assert.match(html, /query\.js\?v=20260816-3/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
@@ -147,7 +147,13 @@ test('public mail lookup supports bounded batches and automatic refresh', () => 
   assert.match(script, /let activeMailBatchTokens = \[\]/);
   assert.match(script, /function renderSingleCodeResult\(message, mailbox\)/);
   assert.match(script, /class="batch-result-toolbar"[\s\S]*?id="refresh-mail-batch"[\s\S]*?class="batch-result-scroll"/);
+  assert.match(script, /class="batch-summary-stat received"/);
+  assert.match(script, /class="batch-summary-stat waiting"/);
+  assert.match(script, /class="batch-summary-stat invalid"/);
+  assert.match(script, /class="batch-auto-refresh \$\{waiting \? 'active' : 'complete'\}"/);
   assert.match(styles, /\.batch-result-toolbar \{[\s\S]*?flex: 0 0 auto/);
+  assert.match(styles, /\.batch-summary-stats \{[\s\S]*?display: flex/);
+  assert.match(styles, /\.batch-result-controls \{[\s\S]*?justify-content: space-between/);
   assert.match(styles, /\.batch-result-scroll \{[\s\S]*?overflow-y: auto/);
   assert.match(styles, /\.single-code-card \{[\s\S]*?min-height: 220px/);
   assert.doesNotMatch(script, /localStorage|sessionStorage/);

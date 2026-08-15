@@ -209,6 +209,41 @@ body.modal-open { overflow: hidden; }
 .message:empty { display: none; }
 
 .table-wrap { overflow-x: auto; }
+.paged-card { display: flex; flex-direction: column; }
+.paged-table-wrap { min-width: 0; flex: 1 1 auto; }
+.paged-table-wrap thead { position: sticky; top: 0; z-index: 1; }
+.admin-pagination {
+  min-height: 58px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+.pagination-summary { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+.pagination-summary strong { color: var(--text); font-size: 12px; }
+.pagination-actions, .pagination-pages { display: flex; align-items: center; gap: 5px; }
+.pagination-actions .btn { min-height: 32px; width: 32px; }
+.pagination-actions .icon { width: 15px; height: 15px; }
+.pagination-page {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+.pagination-page:hover { border-color: var(--border); background: #f8fafc; color: var(--text); }
+.pagination-page.active { border-color: var(--primary); background: var(--primary); color: #fff; box-shadow: 0 2px 7px rgba(13, 148, 136, .2); }
+.pagination-ellipsis { width: 18px; color: var(--text-muted); font-size: 10px; text-align: center; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12px; }
 th, td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; text-align: left; }
 th { background: #f8fafc; color: var(--text-muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
@@ -351,6 +386,9 @@ tbody tr:last-child td { border-bottom: 0; }
   .stats, .compact-stats, .security-summary, .overview-secondary-grid, .security-layout { grid-template-columns: minmax(0, 1fr); }
   .stat { min-height: 116px; }
   .card-header { align-items: flex-start; flex-wrap: wrap; }
+  .admin-pagination { align-items: stretch; flex-direction: column; }
+  .pagination-summary { text-align: center; }
+  .pagination-actions { justify-content: center; }
   .management-toolbar, .inbox-toolbar, .alias-toolbar { align-items: stretch; flex-direction: column; }
   .search-field { width: 100%; }
   .toolbar-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
