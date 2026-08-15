@@ -95,6 +95,9 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /function renderCodeItem\(message, address/);
   assert.match(script, /data-copy-mail-code/);
   assert.match(script, /renderSingleCodeResult\(messages\[0\] \|\| null, data\.mailbox\)/);
+  assert.match(script, /const activeFilter = inboxWorkspace\.dataset\.primaryPanel === 'code' \? 'code' : 'all'/);
+  assert.match(script, /mailForm\.querySelector\(`\[data-mail-filter="\$\{activeFilter\}"\]`\)/);
+  assert.doesNotMatch(script, /event\.submitter/);
   assert.doesNotMatch(script, /messages\.map\(mailState\.filter === 'code' \? renderCodeItem : renderMessageItem\)/);
   assert.doesNotMatch(script, /detail\.body[^\n]*innerHTML/);
   assert.match(script, /邮件内容/);

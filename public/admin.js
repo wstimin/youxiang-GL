@@ -3,12 +3,21 @@
 const state = { data: null, csrfToken: '', importPollTimer: null, activeSection: 'overview' };
 const inbox = { accountId: '', cursor: '', accountPage: 1, accountHasMore: false, messageHasMore: false, loading: false };
 const adminPagination = {
-  accounts: { page: 1, pageSize: 8 },
-  aliases: { page: 1, pageSize: 8 },
-  unmatched: { page: 1, pageSize: 6 },
-  overviewAudit: { page: 1, pageSize: 6 },
-  securityAudit: { page: 1, pageSize: 10 }
+  accounts: { resource: 'accounts', page: 1, pageSize: 10, total: 0, totalPages: 1, rows: [] },
+  aliases: { resource: 'aliases', page: 1, pageSize: 10, total: 0, totalPages: 1, rows: [] },
+  totp: { resource: 'totp', page: 1, pageSize: 10, total: 0, totalPages: 1, rows: [] },
+  unmatched: { resource: 'unmatched', page: 1, pageSize: 6, total: 0, totalPages: 1, rows: [] },
+  overviewAudit: { resource: 'audit', page: 1, pageSize: 6, total: 0, totalPages: 1, rows: [] },
+  securityAudit: { resource: 'security-audit', page: 1, pageSize: 10, total: 0, totalPages: 1, rows: [] }
 };
+const adminListTargets = Object.freeze({
+  accounts: 'accounts-table',
+  aliases: 'aliases-table',
+  totp: 'totp-entries-table',
+  unmatched: 'unmatched-table',
+  overviewAudit: 'audit-table',
+  securityAudit: 'security-audit-table'
+});
 const modalRoot = document.querySelector('#modal-root');
 const toast = document.querySelector('#toast');
 
@@ -99,44 +108,80 @@ function table(headers, rows) {
   return `<table><thead><tr>${headers.map((header) => `<th>${header}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
 }
 
-function pagedRows(key, rows) {
-  const pagination = adminPagination[key];
-  const total = rows.length;
-  const totalPages = Math.max(1, Math.ceil(total / pagination.pageSize));
-  pagination.page = Math.min(Math.max(1, pagination.page), totalPages);
-  const start = (pagination.page - 1) * pagination.pageSize;
-  return { rows: rows.slice(start, start + pagination.pageSize), total, totalPages, page: pagination.page };
-}
-
 function paginationPages(page, totalPages) {
-  const pages = new Set([1, totalPages, page - 1, page, page + 1]);
+  const pages = new Set([1, totalPages, page - 2, page - 1, page, page + 1, page + 2]);
   return [...pages].filter((value) => value >= 1 && value <= totalPages).sort((a, b) => a - b);
 }
 
-function renderPagination(targetId, key, result) {
+function renderPagination(targetId, key) {
   const target = document.querySelector(`#${targetId}`);
   if (!target) return;
-  if (!result.total) {
+  const pagination = adminPagination[key];
+  if (!pagination.total) {
     target.innerHTML = '';
     target.classList.add('hidden');
     return;
   }
-  const pages = paginationPages(result.page, result.totalPages);
+  const pages = paginationPages(pagination.page, pagination.totalPages);
   let previousPage = 0;
   const pageButtons = pages.map((page) => {
     const gap = previousPage && page - previousPage > 1 ? '<span class="pagination-ellipsis">…</span>' : '';
     previousPage = page;
-    return `${gap}<button class="pagination-page${page === result.page ? ' active' : ''}" type="button" data-admin-pagination="${key}" data-admin-page="${page}" ${page === result.page ? 'aria-current="page"' : ''}>${page}</button>`;
+    return `${gap}<button class="pagination-page${page === pagination.page ? ' active' : ''}" type="button" data-admin-pagination="${key}" data-admin-page="${page}" ${page === pagination.page ? 'aria-current="page"' : ''}>${page}</button>`;
   }).join('');
+  const pageSizeOptions = [...new Set([pagination.pageSize, 10, 20, 50])]
+    .sort((a, b) => a - b)
+    .map((size) => `<option value="${size}" ${pagination.pageSize === size ? 'selected' : ''}>${size}</option>`)
+    .join('');
   target.classList.remove('hidden');
-  target.innerHTML = `<span class="pagination-summary">第 <strong>${result.page}</strong> / ${result.totalPages} 页 · 共 ${result.total} 条</span><div class="pagination-actions"><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${result.page - 1}" title="上一页" aria-label="上一页" ${result.page <= 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="icon"></i></button><div class="pagination-pages">${pageButtons}</div><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${result.page + 1}" title="下一页" aria-label="下一页" ${result.page >= result.totalPages ? 'disabled' : ''}><i data-lucide="chevron-right" class="icon"></i></button></div>`;
+  target.innerHTML = `<div class="pagination-meta"><span class="pagination-summary">共 <strong>${pagination.total}</strong> 条 · 第 <strong>${pagination.page}</strong> / ${pagination.totalPages} 页</span><label class="pagination-size"><span>每页</span><select data-admin-page-size="${key}">${pageSizeOptions}</select><span>条</span></label></div><div class="pagination-actions"><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="1" title="首页" aria-label="首页" ${pagination.page <= 1 ? 'disabled' : ''}><i data-lucide="chevrons-left" class="icon"></i></button><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${pagination.page - 1}" title="上一页" aria-label="上一页" ${pagination.page <= 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="icon"></i></button><div class="pagination-pages">${pageButtons}</div><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${pagination.page + 1}" title="下一页" aria-label="下一页" ${pagination.page >= pagination.totalPages ? 'disabled' : ''}><i data-lucide="chevron-right" class="icon"></i></button><button class="btn btn-secondary btn-icon" type="button" data-admin-pagination="${key}" data-admin-page="${pagination.totalPages}" title="末页" aria-label="末页" ${pagination.page >= pagination.totalPages ? 'disabled' : ''}><i data-lucide="chevrons-right" class="icon"></i></button></div>`;
 }
 
-function renderPagedTable({ key, tableId, paginationId, headers, rows, rowRenderer }) {
-  const result = pagedRows(key, rows);
-  document.querySelector(`#${tableId}`).innerHTML = table(headers, result.rows.map(rowRenderer));
-  renderPagination(paginationId, key, result);
-  return result;
+function renderServerTable({ key, tableId, paginationId, headers, rowRenderer }) {
+  const pagination = adminPagination[key];
+  document.querySelector(`#${tableId}`).innerHTML = table(headers, pagination.rows.map(rowRenderer));
+  renderPagination(paginationId, key);
+}
+
+function adminListParams(key) {
+  const pagination = adminPagination[key];
+  const params = new URLSearchParams({ page: String(pagination.page), pageSize: String(pagination.pageSize) });
+  if (key === 'accounts') params.set('keyword', document.querySelector('#account-search')?.value.trim() || '');
+  if (key === 'aliases') {
+    params.set('keyword', document.querySelector('#alias-search')?.value.trim() || '');
+    params.set('accountId', document.querySelector('#alias-account-filter')?.value || '');
+    params.set('status', document.querySelector('#alias-status-filter')?.value || '');
+  }
+  if (key === 'totp') params.set('keyword', document.querySelector('#totp-search')?.value.trim() || '');
+  return params;
+}
+
+async function loadAdminList(key, options = {}) {
+  const pagination = adminPagination[key];
+  const tableTarget = document.querySelector(`#${adminListTargets[key]}`);
+  if (!pagination || !tableTarget) return;
+  if (!options.silent) {
+    tableTarget.classList.add('is-loading');
+    tableTarget.setAttribute('aria-busy', 'true');
+  }
+  try {
+    const data = await api(`/api/admin/lists/${pagination.resource}?${adminListParams(key)}`);
+    pagination.rows = data.rows;
+    Object.assign(pagination, data.pagination);
+    if (state.data) {
+      if (key === 'accounts') state.data.accounts = pagination.rows;
+      if (key === 'aliases') state.data.aliases = pagination.rows;
+      if (key === 'totp') state.data.totpEntries = pagination.rows;
+    }
+    if (!options.deferRender) render();
+  } finally {
+    tableTarget.classList.remove('is-loading');
+    tableTarget.removeAttribute('aria-busy');
+  }
+}
+
+async function loadAllAdminLists() {
+  await Promise.all(Object.keys(adminPagination).map((key) => loadAdminList(key, { silent: true, deferRender: true })));
 }
 
 function badge(status, enabled = true) {
@@ -368,7 +413,7 @@ function renderAliasFilters(data) {
   const select = document.querySelector('#alias-account-filter');
   if (!select) return;
   const selected = select.value;
-  select.innerHTML = `<option value="">全部母邮箱</option>${data.accounts.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('')}`;
+  select.innerHTML = `<option value="">全部母邮箱</option>${data.accountOptions.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('')}`;
   select.value = selected;
 }
 
@@ -376,16 +421,15 @@ function render() {
   const data = state.data;
   const metrics = data.metrics || {};
   document.querySelector('#admin-email').textContent = data.admin.email;
-  const enabledAliases = data.aliases.filter((row) => row.enabled).length;
   const mailChange = dailyChange(metrics.mail_received_today, metrics.mail_received_yesterday);
   const codeChange = dailyChange(metrics.codes_extracted_today, metrics.codes_extracted_yesterday);
   const aliasesCreatedLast7Days = Number(metrics.aliases_created_last_7_days || 0);
   const totpCreatedToday = Number(metrics.totp_created_today || 0);
   document.querySelector('#stats').innerHTML = [
     ['📨', '今日收信', metrics.mail_received_today, mailChange.text, mailChange.tone, 'teal', 'messages'],
-    ['📬', '活跃邮箱', metrics.active_aliases ?? enabledAliases, aliasesCreatedLast7Days ? `↑ 近 7 日新增 ${formatCount(aliasesCreatedLast7Days)}` : '近 7 日暂无新增', aliasesCreatedLast7Days ? 'up' : 'neutral', 'blue', 'enabled-aliases'],
+    ['📬', '活跃邮箱', metrics.active_aliases, aliasesCreatedLast7Days ? `↑ 近 7 日新增 ${formatCount(aliasesCreatedLast7Days)}` : '近 7 日暂无新增', aliasesCreatedLast7Days ? 'up' : 'neutral', 'blue', 'enabled-aliases'],
     ['🔢', '验证码提取', metrics.codes_extracted_today, codeChange.text, codeChange.tone, 'green', 'code-messages'],
-    ['🔐', '2FA 账号', metrics.totp_accounts ?? data.totpEntries.length, totpCreatedToday ? `↑ 今日新增 ${formatCount(totpCreatedToday)}` : '今日暂无新增', totpCreatedToday ? 'up' : 'neutral', 'orange', 'totp-entries']
+    ['🔐', '2FA 账号', metrics.totp_accounts, totpCreatedToday ? `↑ 今日新增 ${formatCount(totpCreatedToday)}` : '今日暂无新增', totpCreatedToday ? 'up' : 'neutral', 'orange', 'totp-entries']
   ].map(([icon, label, value, detail, detailTone, tone, action]) => `<button type="button" class="stat overview-stat tone-${tone}" data-overview-action="${action}" aria-label="${label}，点击查看详情"><div class="stat-head"><div><div class="stat-label">${label}</div><div class="stat-value">${formatCount(value)}</div></div><span class="stat-icon" aria-hidden="true">${icon}</span></div><div class="stat-footer"><span class="stat-change ${detailTone}">${escapeHtml(detail)}</span></div></button>`).join('');
 
   const worker = data.runtime.find((row) => row.service === 'worker');
@@ -400,25 +444,16 @@ function render() {
   renderMailTrend(data.recent);
   renderSecuritySummary(data);
   renderAliasFilters(data);
-
-  const accountQuery = document.querySelector('#account-search')?.value.trim().toLowerCase() || '';
-  const aliasQuery = document.querySelector('#alias-search').value.trim().toLowerCase();
-  const totpQuery = document.querySelector('#totp-search').value.trim().toLowerCase();
   const messageQuery = document.querySelector('#message-search').value.trim().toLowerCase();
-  const aliasAccountFilter = document.querySelector('#alias-account-filter')?.value || '';
-  const aliasStatusFilter = document.querySelector('#alias-status-filter')?.value || '';
-  const filteredAccounts = data.accounts.filter((row) => matches(row.email, accountQuery) || matches(row.provider, accountQuery) || matches(row.status, accountQuery) || matches(mailProviderDetails[inferMailProvider(row)].label, accountQuery));
-  const filteredAliases = data.aliases.filter((row) => (matches(row.address, aliasQuery) || matches(row.label, aliasQuery)) && (!aliasAccountFilter || String(row.mail_account_id) === aliasAccountFilter) && (!aliasStatusFilter || (aliasStatusFilter === 'enabled' ? row.enabled : !row.enabled)));
-  const filteredTotps = data.totpEntries.filter((row) => matches(row.issuer, totpQuery) || matches(row.account_name, totpQuery) || matches(row.secret_hint, totpQuery));
   const filteredMessages = data.recent.filter((row) => matches(row.address, messageQuery) || matches(row.sender, messageQuery) || matches(row.subject, messageQuery));
-  document.querySelector('#account-count').textContent = `${filteredAccounts.length}/${data.accounts.length} 个母邮箱`;
-  document.querySelector('#alias-count').textContent = `${filteredAliases.length}/${data.aliases.length} 条`;
-  document.querySelector('#totp-count').textContent = `${filteredTotps.length}/${data.totpEntries.length} 条`;
+  document.querySelector('#account-count').textContent = `${adminPagination.accounts.total} 个母邮箱`;
+  document.querySelector('#alias-count').textContent = `${adminPagination.aliases.total} 条`;
+  document.querySelector('#totp-count').textContent = `${adminPagination.totp.total} 条`;
   document.querySelector('#alias-stats').innerHTML = [
-    ['layers-3', '子邮箱总数', data.aliases.length, 'teal'],
-    ['circle-check-big', '已启用', enabledAliases, 'green'],
-    ['circle-pause', '已停用', data.aliases.length - enabledAliases, 'orange'],
-    ['key-round', '可恢复密钥', data.aliases.filter((row) => row.token_recoverable).length, 'blue']
+    ['layers-3', '子邮箱总数', metrics.total_aliases, 'teal'],
+    ['circle-check-big', '已启用', metrics.active_aliases, 'green'],
+    ['circle-pause', '已停用', metrics.disabled_aliases, 'orange'],
+    ['key-round', '可恢复密钥', metrics.recoverable_aliases, 'blue']
   ].map(([icon, label, value, tone]) => `<div class="compact-stat tone-${tone}"><span><i data-lucide="${icon}"></i>${label}</span><strong>${value}</strong></div>`).join('');
   const messageCount = document.querySelector('#message-count');
   if (messageCount) messageCount.textContent = `${filteredMessages.length}/${data.recent.length} 条`;
@@ -427,14 +462,12 @@ function render() {
   document.querySelector('#overview-recent').innerHTML = table(['邮箱', '文件夹', '发件人', '主题', '收到时间'], recentRows);
   const legacyMessageTable = document.querySelector('#messages-table');
   if (legacyMessageTable) legacyMessageTable.innerHTML = table(['邮箱', '发件人', '主题', '收到时间'], filteredMessages.map((row) => `<tr><td>${escapeHtml(row.address || '未匹配')}</td><td>${escapeHtml(senderDisplayName(row.sender))}</td><td>${escapeHtml(row.subject)}</td><td>${formatDate(row.received_at)}</td></tr>`));
-  renderPagedTable({ key: 'unmatched', tableId: 'unmatched-table', paginationId: 'unmatched-pagination', headers: ['文件夹', '发件人', '主题', '收件信息', '收到时间'], rows: data.unmatched, rowRenderer: (row) => `<tr><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(senderDisplayName(row.sender))}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>` });
-  renderPagedTable({ key: 'overviewAudit', tableId: 'audit-table', paginationId: 'overview-audit-pagination', headers: ['操作者', '操作', '对象/详情', '时间'], rows: data.audit, rowRenderer: (row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>` });
-  const securityAuditRows = data.audit.filter((row) => /login|session|password|secret|totp|mail_account/.test(row.action));
-  renderPagedTable({ key: 'securityAudit', tableId: 'security-audit-table', paginationId: 'security-audit-pagination', headers: ['操作者', '操作', '对象/详情', '时间'], rows: securityAuditRows, rowRenderer: (row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>` });
-
-  renderPagedTable({ key: 'accounts', tableId: 'accounts-table', paginationId: 'accounts-pagination', headers: ['母邮箱地址', '服务商', '连接服务器', '状态', '最后同步', '操作'], rows: filteredAccounts, rowRenderer: (row) => `<tr><td><div class="table-primary"><span class="provider-mark tone-${inferMailProvider(row)}"><i data-lucide="mail"></i></span><div><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<small class="danger-text">${escapeHtml(mailErrorLabel(row.last_error))}</small>` : '<small>IMAP 接收账户</small>'}</div></div></td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td><span class="mono-value">${escapeHtml(row.host)}:${row.port}</span></td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
-  renderPagedTable({ key: 'aliases', tableId: 'aliases-table', paginationId: 'aliases-pagination', headers: ['子邮箱地址', '备注', '查询密钥', '状态', '最近收信', '操作'], rows: filteredAliases, rowRenderer: (row) => `<tr><td><div class="table-primary"><span class="alias-mark">@</span><div><strong>${escapeHtml(row.address)}</strong><small>${escapeHtml(data.accounts.find((account) => String(account.id) === String(row.mail_account_id))?.email || '未关联母邮箱')}</small></div></div></td><td>${escapeHtml(row.label || '-')}</td><td><span class="mono-value">末六位 ${escapeHtml(row.token_hint || '-')}</span>${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑子邮箱" aria-label="编辑子邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除子邮箱" aria-label="删除子邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
-  document.querySelector('#totp-entries-table').innerHTML = table(['平台', '账号', '密钥提示', '来源', '最近使用', '操作'], filteredTotps.map((row) => `<tr><td><div class="admin-totp-platform">${renderTotpAvatar(row.issuer)}<strong>${escapeHtml(row.issuer || '未命名平台')}</strong></div></td><td>${escapeHtml(row.account_name || '-')}</td><td>末四位 ${escapeHtml(row.secret_hint || '-')}</td><td>${row.legacy_alias_address ? `由旧配置迁移<br><small class="muted">${escapeHtml(row.legacy_alias_address)}</small>` : '前端直接添加'}</td><td>${formatDate(row.last_used_at || row.created_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-totp-edit="${row.id}" title="编辑 2FA 备注" aria-label="编辑 2FA 备注"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-totp-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥与验证码</span></button><button class="btn btn-danger btn-icon" title="删除 2FA" aria-label="删除 2FA" data-totp-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>`));
+  renderServerTable({ key: 'unmatched', tableId: 'unmatched-table', paginationId: 'unmatched-pagination', headers: ['文件夹', '发件人', '主题', '收件信息', '收到时间'], rowRenderer: (row) => `<tr><td>${escapeHtml(formatFolders(row.mailbox_paths))}</td><td>${escapeHtml(senderDisplayName(row.sender))}</td><td>${escapeHtml(row.subject)}</td><td>${escapeHtml(row.recipient_headers.slice(0, 120))}</td><td>${formatDate(row.received_at)}</td></tr>` });
+  renderServerTable({ key: 'overviewAudit', tableId: 'audit-table', paginationId: 'overview-audit-pagination', headers: ['操作者', '操作', '对象/详情', '时间'], rowRenderer: (row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>` });
+  renderServerTable({ key: 'securityAudit', tableId: 'security-audit-table', paginationId: 'security-audit-pagination', headers: ['操作者', '操作', '对象/详情', '时间'], rowRenderer: (row) => `<tr><td>${escapeHtml(auditActorLabel(row.actor))}</td><td>${escapeHtml(auditActionLabel(row.action))}</td><td>${escapeHtml(auditRecordDetail(row))}</td><td>${formatDate(row.created_at)}</td></tr>` });
+  renderServerTable({ key: 'accounts', tableId: 'accounts-table', paginationId: 'accounts-pagination', headers: ['母邮箱地址', '服务商', '连接服务器', '状态', '最后同步', '操作'], rowRenderer: (row) => `<tr><td><div class="table-primary"><span class="provider-mark tone-${inferMailProvider(row)}"><i data-lucide="mail"></i></span><div><strong>${escapeHtml(row.email)}</strong>${row.last_error ? `<small class="danger-text">${escapeHtml(mailErrorLabel(row.last_error))}</small>` : '<small>IMAP 接收账户</small>'}</div></div></td><td>${escapeHtml(mailProviderDetails[inferMailProvider(row)].label)}</td><td><span class="mono-value">${escapeHtml(row.host)}:${row.port}</span></td><td>${badge(row.status, row.enabled)}</td><td>${formatDate(row.last_synced_at)}${row.sync_requested_at ? '<br><small class="muted">已加入优先同步队列</small>' : ''}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" title="编辑母邮箱" aria-label="编辑母邮箱" data-account-edit="${row.id}"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-account-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看凭据</span></button><button class="btn btn-secondary btn-icon" title="请求同步" aria-label="请求同步" data-account-sync="${row.id}" ${row.enabled ? '' : 'disabled'}><i data-lucide="refresh-cw" class="icon"></i></button><button class="btn btn-secondary" data-account-toggle="${row.id}">${row.enabled ? '暂停' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除" aria-label="删除" data-account-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
+  renderServerTable({ key: 'aliases', tableId: 'aliases-table', paginationId: 'aliases-pagination', headers: ['子邮箱地址', '备注', '查询密钥', '状态', '最近收信', '操作'], rowRenderer: (row) => `<tr><td><div class="table-primary"><span class="alias-mark">@</span><div><strong>${escapeHtml(row.address)}</strong><small>${escapeHtml(row.mail_account_email || '未关联母邮箱')}</small></div></div></td><td>${escapeHtml(row.label || '-')}</td><td><span class="mono-value">末六位 ${escapeHtml(row.token_hint || '-')}</span>${row.token_recoverable ? '' : '<br><small class="muted">旧密钥不可恢复</small>'}</td><td>${row.enabled ? '<span class="badge">已启用</span>' : '<span class="badge off">已停用</span>'}</td><td>${formatDate(row.last_received_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-alias-edit="${row.id}" title="编辑子邮箱" aria-label="编辑子邮箱"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-alias-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥</span></button><button class="btn btn-secondary" data-alias-reset="${row.id}">重置密钥</button><button class="btn btn-secondary" data-alias-toggle="${row.id}">${row.enabled ? '停用' : '启用'}</button><button class="btn btn-danger btn-icon" title="删除子邮箱" aria-label="删除子邮箱" data-alias-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
+  renderServerTable({ key: 'totp', tableId: 'totp-entries-table', paginationId: 'totp-pagination', headers: ['平台', '账号', '密钥提示', '来源', '最近使用', '操作'], rowRenderer: (row) => `<tr><td><div class="admin-totp-platform">${renderTotpAvatar(row.issuer)}<strong>${escapeHtml(row.issuer || '未命名平台')}</strong></div></td><td>${escapeHtml(row.account_name || '-')}</td><td>末四位 ${escapeHtml(row.secret_hint || '-')}</td><td>${row.legacy_alias_address ? `由旧配置迁移<br><small class="muted">${escapeHtml(row.legacy_alias_address)}</small>` : '前端直接添加'}</td><td>${formatDate(row.last_used_at || row.created_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-icon" data-totp-edit="${row.id}" title="编辑 2FA 备注" aria-label="编辑 2FA 备注"><i data-lucide="pencil" class="icon"></i></button><button class="btn btn-secondary" data-totp-secrets="${row.id}"><i data-lucide="eye" class="icon"></i><span>查看密钥与验证码</span></button><button class="btn btn-danger btn-icon" title="删除 2FA" aria-label="删除 2FA" data-totp-delete="${row.id}"><i data-lucide="trash-2" class="icon"></i></button></div></td></tr>` });
   document.querySelector('#sessions-table').innerHTML = table(['设备', '登录时间', '过期时间', '状态', '操作'], data.sessions.map((row) => `<tr><td><strong>${escapeHtml(sessionDevice(row.user_agent))}</strong></td><td>${formatDate(row.created_at)}</td><td>${formatDate(row.expires_at)}</td><td>${row.current ? '<span class="badge">当前会话</span>' : '<span class="badge off">其他会话</span>'}</td><td>${row.current ? '<span class="muted">正在使用</span>' : `<button class="btn btn-danger" data-session-revoke="${row.session_id}">退出此设备</button>`}</td></tr>`));
 
   document.querySelector('#totp-status').textContent = data.admin.totpEnabled ? 'TOTP 动态验证码已启用，管理员登录需要密码和六位动态码。' : 'TOTP 尚未启用，管理员登录目前只使用密码。';
@@ -442,7 +475,6 @@ function render() {
   bindRowActions();
   bindPaginationActions();
   lucide.createIcons();
-  if (document.querySelector('#messages')?.classList.contains('active')) loadInbox().catch(() => {});
 }
 
 function bindPaginationActions() {
@@ -451,7 +483,14 @@ function bindPaginationActions() {
     const nextPage = Number.parseInt(button.dataset.adminPage, 10);
     if (!pagination || !Number.isSafeInteger(nextPage) || nextPage < 1 || nextPage === pagination.page) return;
     pagination.page = nextPage;
-    render();
+    loadAdminList(button.dataset.adminPagination).catch((error) => toastMessage(error.message));
+  }));
+  document.querySelectorAll('[data-admin-page-size]').forEach((select) => select.addEventListener('change', () => {
+    const pagination = adminPagination[select.dataset.adminPageSize];
+    if (!pagination) return;
+    pagination.pageSize = Number.parseInt(select.value, 10) || 10;
+    pagination.page = 1;
+    loadAdminList(select.dataset.adminPageSize).catch((error) => toastMessage(error.message));
   }));
 }
 
@@ -525,7 +564,12 @@ async function openInboxMessage(id) {
 async function loadState() {
   state.data = await api('/api/admin/state');
   state.csrfToken = state.data.csrfToken;
+  state.data.accounts = adminPagination.accounts.rows;
+  state.data.aliases = adminPagination.aliases.rows;
+  state.data.totpEntries = adminPagination.totp.rows;
+  await loadAllAdminLists();
   render();
+  if (document.querySelector('#messages')?.classList.contains('active')) await loadInbox();
 }
 
 function openModal(title, body) {
@@ -626,7 +670,7 @@ function bindRowActions() {
   }));
   document.querySelectorAll('[data-alias-edit]').forEach((button) => button.addEventListener('click', () => openAliasEditor(button.dataset.aliasEdit)));
   document.querySelectorAll('[data-alias-secrets]').forEach((button) => button.addEventListener('click', () => {
-    const alias = state.data.aliases.find((row) => String(row.id) === button.dataset.aliasSecrets);
+    const alias = adminPagination.aliases.rows.find((row) => String(row.id) === button.dataset.aliasSecrets);
     openAliasSecrets(alias);
   }));
   document.querySelectorAll('[data-totp-secrets]').forEach((button) => button.addEventListener('click', () => openTotpSecrets(button.dataset.totpSecrets)));
@@ -651,7 +695,7 @@ function bindRowActions() {
 }
 
 function openAccountEditor(id) {
-  const account = state.data.accounts.find((row) => String(row.id) === String(id));
+  const account = adminPagination.accounts.rows.find((row) => String(row.id) === String(id));
   if (!account) return;
   const provider = inferMailProvider(account);
   openModal('编辑母邮箱', `<form id="account-edit-form"><div class="form-grid"><div class="field"><label for="edit-account-provider">邮箱服务商</label><select id="edit-account-provider">${mailProviderOptions(provider)}</select></div><div class="field"><label for="edit-account-email">母邮箱地址</label><input id="edit-account-email" type="email" required value="${escapeHtml(account.email)}"></div><div class="field"><label id="edit-account-password-label" for="edit-account-password">授权密码</label><input id="edit-account-password" type="password" autocomplete="new-password" placeholder="留空表示不修改"></div><div class="field"><label for="edit-account-imap">IMAP 服务器</label><input id="edit-account-imap" readonly></div></div><p id="edit-account-help" class="muted compact-note"></p><p class="muted compact-note">保存前会实际测试登录。密码留空时继续使用当前加密凭据；切换服务商时请填写对应的新凭据。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>测试并保存</span></button></div></form>`);
@@ -680,7 +724,7 @@ function openAccountEditor(id) {
 }
 
 function openAccountSecrets(id) {
-  const account = state.data.accounts.find((row) => String(row.id) === String(id));
+  const account = adminPagination.accounts.rows.find((row) => String(row.id) === String(id));
   if (!account) return;
   openModal('查看邮箱凭据', `<p class="muted">请输入当前管理员登录密码，确认查看 ${escapeHtml(account.email)} 的 IMAP 授权密码。</p><form id="account-secrets-form"><div class="field"><label for="account-secrets-password">当前管理员密码</label><input id="account-secrets-password" type="password" autocomplete="current-password" required></div><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="eye" class="icon"></i><span>确认查看</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
@@ -706,9 +750,9 @@ function renderAccountSecrets(data) {
 }
 
 function openAliasEditor(id) {
-  const alias = state.data.aliases.find((row) => String(row.id) === String(id));
+  const alias = adminPagination.aliases.rows.find((row) => String(row.id) === String(id));
   if (!alias) return;
-  const options = state.data.accounts.map((row) => `<option value="${row.id}" ${String(row.id) === String(alias.mail_account_id) ? 'selected' : ''}>${escapeHtml(row.email)}</option>`).join('');
+  const options = state.data.accountOptions.map((row) => `<option value="${row.id}" ${String(row.id) === String(alias.mail_account_id) ? 'selected' : ''}>${escapeHtml(row.email)}</option>`).join('');
   openModal('编辑子邮箱', `<form id="alias-edit-form"><div class="form-grid"><div class="field"><label for="edit-alias-account">所属母邮箱</label><select id="edit-alias-account">${options}</select></div><div class="field"><label for="edit-alias-address">子邮箱地址</label><input id="edit-alias-address" type="email" required value="${escapeHtml(alias.address)}"></div><div class="field"><label for="edit-alias-label">备注</label><input id="edit-alias-label" maxlength="80" value="${escapeHtml(alias.label || '')}"></div><div class="field"><label for="edit-alias-expiry">查询密钥有效期</label><select id="edit-alias-expiry"><option value="keep">保持当前设置</option><option value="never">改为长期有效</option><option value="days">从现在起重新计算</option></select></div><div id="edit-alias-days-field" class="field hidden"><label for="edit-alias-days">有效天数</label><input id="edit-alias-days" type="number" min="1" max="3650" value="30"></div></div><p class="muted compact-note">本操作不会修改或重置现有查询密钥。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>保存修改</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
   document.querySelector('#edit-alias-expiry').addEventListener('change', (event) => {
@@ -731,7 +775,7 @@ function openAliasEditor(id) {
 }
 
 function openTotpEditor(id) {
-  const entry = state.data.totpEntries.find((row) => String(row.id) === String(id));
+  const entry = adminPagination.totp.rows.find((row) => String(row.id) === String(id));
   if (!entry) return;
   openModal('编辑 2FA 备注', `<form id="totp-edit-form"><div class="field"><label for="edit-totp-issuer">平台名称</label><input id="edit-totp-issuer" maxlength="120" value="${escapeHtml(entry.issuer || '')}" placeholder="例如 GitHub"></div><div class="field"><label for="edit-totp-account">账号备注</label><input id="edit-totp-account" maxlength="160" value="${escapeHtml(entry.account_name || '')}" placeholder="例如 user@example.com"></div><p class="muted compact-note">这里只修改平台和账号备注，不会修改原始 2FA 密钥。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="save" class="icon"></i><span>保存修改</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
@@ -875,7 +919,7 @@ function runOverviewAction(action) {
     document.querySelector('#alias-account-filter').value = '';
     document.querySelector('#alias-status-filter').value = 'enabled';
     adminPagination.aliases.page = 1;
-    render();
+    loadAdminList('aliases').catch((error) => toastMessage(error.message));
     activateAdminSection('aliases');
     return;
   }
@@ -894,39 +938,15 @@ function runOverviewAction(action) {
     document.querySelector('#message-search').value = '';
   }
   if (action === 'mailboxes') document.querySelector('#account-search').value = '';
-  if (action === 'totp-entries') document.querySelector('#totp-search').value = '';
-  if (state.data) render();
+  if (action === 'totp-entries') {
+    document.querySelector('#totp-search').value = '';
+    adminPagination.totp.page = 1;
+    loadAdminList('totp').catch((error) => toastMessage(error.message));
+  }
   activateAdminSection(action);
 }
 
-function globalSearchResults(query) {
-  if (!state.data || !query) return [];
-  const normalized = query.toLowerCase();
-  const results = [];
-  state.data.accounts.forEach((row) => {
-    if ([row.email, row.provider, row.status].some((value) => matches(value, normalized))) {
-      results.push({ section: 'mailboxes', icon: 'inbox', type: '母邮箱', title: row.email, detail: mailProviderDetails[inferMailProvider(row)].label, value: row.email });
-    }
-  });
-  state.data.aliases.forEach((row) => {
-    if ([row.address, row.label].some((value) => matches(value, normalized))) {
-      results.push({ section: 'aliases', icon: 'at-sign', type: '子邮箱', title: row.address, detail: row.label || '无备注', value: row.address });
-    }
-  });
-  state.data.totpEntries.forEach((row) => {
-    if ([row.issuer, row.account_name, row.secret_hint].some((value) => matches(value, normalized))) {
-      results.push({ section: 'totp-entries', icon: 'fingerprint', type: '2FA', title: row.issuer || '未命名平台', detail: row.account_name || '无账号备注', value: row.issuer || row.account_name || row.secret_hint });
-    }
-  });
-  state.data.recent.forEach((row) => {
-    if ([row.address, row.sender, row.subject].some((value) => matches(value, normalized))) {
-      results.push({ section: 'messages', icon: 'mail', type: '邮件', title: row.subject || '无主题', detail: `${senderDisplayName(row.sender)} · ${row.address || '未匹配'}`, value: query });
-    }
-  });
-  return results.slice(0, 8);
-}
-
-function renderGlobalSearch(query) {
+async function renderGlobalSearch(query) {
   const target = document.querySelector('#admin-search-results');
   if (!target) return;
   const value = query.trim();
@@ -935,7 +955,8 @@ function renderGlobalSearch(query) {
     target.classList.add('hidden');
     return;
   }
-  const results = globalSearchResults(value);
+  const { results } = await api(`/api/admin/search?keyword=${encodeURIComponent(value)}`);
+  if (document.querySelector('#global-search')?.value.trim() !== value) return;
   target.innerHTML = results.length ? results.map((row) => `<button type="button" data-search-section="${row.section}" data-search-value="${escapeHtml(row.value)}"><span class="search-result-icon"><i data-lucide="${row.icon}"></i></span><span class="search-result-copy"><small>${row.type}</small><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.detail)}</span></span><i data-lucide="arrow-up-right" class="search-result-arrow"></i></button>`).join('') : empty('没有找到匹配内容');
   target.classList.remove('hidden');
   target.querySelectorAll('[data-search-section]').forEach((button) => button.addEventListener('click', () => {
@@ -947,7 +968,9 @@ function renderGlobalSearch(query) {
     } else {
       if (button.dataset.searchSection === 'mailboxes') adminPagination.accounts.page = 1;
       if (button.dataset.searchSection === 'aliases') adminPagination.aliases.page = 1;
-      if (state.data) render();
+      if (button.dataset.searchSection === 'totp-entries') adminPagination.totp.page = 1;
+      const listKey = { mailboxes: 'accounts', aliases: 'aliases', 'totp-entries': 'totp' }[button.dataset.searchSection];
+      if (listKey) loadAdminList(listKey).catch((error) => toastMessage(error.message));
       activateAdminSection(button.dataset.searchSection);
     }
   }));
@@ -979,13 +1002,18 @@ document.querySelector('#message-code-only')?.addEventListener('change', () => {
   const element = document.querySelector(`#${id}`);
   const eventName = element?.tagName === 'SELECT' ? 'change' : 'input';
   element?.addEventListener(eventName, () => {
-    if (id === 'account-search') adminPagination.accounts.page = 1;
-    if (['alias-search', 'alias-account-filter', 'alias-status-filter'].includes(id)) adminPagination.aliases.page = 1;
-    if (state.data) render();
+    clearTimeout(state.listSearchTimer);
+    const listKey = id === 'account-search' ? 'accounts' : id === 'totp-search' ? 'totp' : 'aliases';
+    adminPagination[listKey].page = 1;
+    const run = () => loadAdminList(listKey).catch((error) => toastMessage(error.message));
+    if (eventName === 'input') state.listSearchTimer = setTimeout(run, 250); else run();
   });
 });
-document.querySelector('#global-search')?.addEventListener('input', (event) => renderGlobalSearch(event.target.value));
-document.querySelector('#global-search')?.addEventListener('focus', (event) => renderGlobalSearch(event.target.value));
+document.querySelector('#global-search')?.addEventListener('input', (event) => {
+  clearTimeout(state.globalSearchTimer);
+  state.globalSearchTimer = setTimeout(() => renderGlobalSearch(event.target.value).catch((error) => toastMessage(error.message)), 250);
+});
+document.querySelector('#global-search')?.addEventListener('focus', (event) => renderGlobalSearch(event.target.value).catch((error) => toastMessage(error.message)));
 document.addEventListener('click', (event) => {
   if (!event.target.closest('.admin-global-search')) document.querySelector('#admin-search-results')?.classList.add('hidden');
 });
@@ -1029,8 +1057,8 @@ document.querySelector('#export-new-aliases').addEventListener('click', (event) 
 document.querySelector('#export-all-aliases').addEventListener('click', (event) => exportAliases('all', event.currentTarget));
 
 document.querySelector('#import-aliases').addEventListener('click', () => {
-  if (!state.data.accounts.length) return toastMessage('请先接入母邮箱');
-  const options = state.data.accounts.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('');
+  if (!state.data.accountOptions.length) return toastMessage('请先接入母邮箱');
+  const options = state.data.accountOptions.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('');
   openModal('批量导入子邮箱', `<form id="alias-import-form"><div class="field"><label for="import-alias-account">所属母邮箱</label><select id="import-alias-account">${options}</select></div><div class="field"><label for="import-alias-lines">子邮箱列表</label><textarea id="import-alias-lines" rows="10" required placeholder="alias1@icloud.com,账号 01&#10;alias2@icloud.com,账号 02"></textarea><div class="field-tools"><small><span id="alias-import-count">0</span> / 100 个子邮箱</small></div></div><p class="muted compact-note">每行一个子邮箱，可在英文逗号后填写备注，最多导入 100 条。已存在的地址会自动跳过。</p><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="upload" class="icon"></i><span>开始导入</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
   document.querySelector('#import-alias-lines').addEventListener('input', (event) => {
@@ -1114,8 +1142,8 @@ document.querySelector('#add-account').addEventListener('click', () => {
 });
 
 document.querySelector('#add-alias').addEventListener('click', () => {
-  if (!state.data.accounts.length) return toastMessage('请先接入母邮箱');
-  const options = state.data.accounts.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('');
+  if (!state.data.accountOptions.length) return toastMessage('请先接入母邮箱');
+  const options = state.data.accountOptions.map((row) => `<option value="${row.id}">${escapeHtml(row.email)}</option>`).join('');
   openModal('添加子邮箱', `<form id="alias-form"><div class="form-grid"><div class="field"><label for="alias-account">所属母邮箱</label><select id="alias-account">${options}</select></div><div class="field"><label for="alias-address">子邮箱地址</label><input id="alias-address" type="email" required></div><div class="field"><label for="alias-label">备注</label><input id="alias-label" maxlength="80" placeholder="例如：测试账号 01"></div><div class="field"><label for="alias-days">密钥有效天数</label><input id="alias-days" type="number" min="1" max="3650" placeholder="留空表示长期"></div></div><p id="modal-error" class="message"></p><div class="form-actions"><button class="btn btn-secondary" type="button" data-cancel>取消</button><button class="btn btn-primary" type="submit"><i data-lucide="key-round" class="icon"></i><span>创建并生成密钥</span></button></div></form>`);
   document.querySelector('[data-cancel]').addEventListener('click', closeModal);
   document.querySelector('#alias-form').addEventListener('submit', async (event) => {

@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>mail管理</title>
   <link rel="icon" type="image/svg+xml" href="/assets/mail-favicon.svg?v=20260815-1">
-  <link rel="stylesheet" href="/assets/admin-design.css?v=20260816-1">
+  <link rel="stylesheet" href="/assets/admin-design.css?v=20260816-2">
 </head>
 <body>
   <div class="admin-shell">
@@ -89,7 +89,7 @@
             <div id="overview-recent" class="table-wrap"></div>
           </div>
           <div class="overview-grid overview-secondary-grid">
-            <div class="card paged-card"><div class="card-header"><div><h3>未匹配邮件</h3><span class="card-subtitle">无法归属到子邮箱的最近记录</span></div><span class="badge off">最近 30 条</span></div><div id="unmatched-table" class="table-wrap paged-table-wrap"></div><div id="unmatched-pagination" class="admin-pagination" aria-live="polite"></div></div>
+            <div class="card paged-card"><div class="card-header"><div><h3>未匹配邮件</h3><span class="card-subtitle">无法归属到子邮箱的记录</span></div><i data-lucide="mail-warning" class="card-header-icon"></i></div><div id="unmatched-table" class="table-wrap paged-table-wrap"></div><div id="unmatched-pagination" class="admin-pagination" aria-live="polite"></div></div>
             <div id="overview-audit-panel" class="card paged-card overview-focus-panel" tabindex="-1"><div class="card-header"><div><h3>最近审计</h3><span class="card-subtitle">关键管理和查询操作</span></div><i data-lucide="scroll-text" class="card-header-icon"></i></div><div id="audit-table" class="table-wrap paged-table-wrap"></div><div id="overview-audit-pagination" class="admin-pagination" aria-live="polite"></div></div>
           </div>
         </section>
@@ -126,10 +126,11 @@
 
         <section id="totp-entries" class="section">
           <div class="section-head"><div><h2>2FA 管理</h2><p>查看和管理前端转换保存的独立动态验证码密钥。</p></div></div>
-          <div class="card management-card">
+          <div class="card management-card paged-card">
             <div class="card-header"><div><h3>2FA 账户列表</h3><span class="card-subtitle">支持编辑备注、查看当前验证码和删除记录</span></div><span id="totp-count" class="list-count"></span></div>
             <div class="management-toolbar"><div class="field search-field"><label class="sr-only" for="totp-search">搜索 2FA</label><i data-lucide="search" class="icon"></i><input id="totp-search" type="search" placeholder="搜索平台、账号或密钥末四位"></div></div>
-            <div id="totp-entries-table" class="table-wrap"></div>
+            <div id="totp-entries-table" class="table-wrap paged-table-wrap"></div>
+            <div id="totp-pagination" class="admin-pagination" aria-live="polite"></div>
           </div>
         </section>
 
@@ -164,6 +165,6 @@
   <div id="modal-root"></div>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/vendor/lucide.js?v=20260809-7"></script>
-  <script src="/assets/admin.js?v=20260816-1"></script>
+  <script src="/assets/admin.js?v=20260816-2"></script>
 </body>
 </html>

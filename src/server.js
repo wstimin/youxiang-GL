@@ -786,20 +786,12 @@ app.post('/api/admin/login/totp', adminNetwork, async (req, res, next) => {
 app.get('/api/admin/state', ...adminApi(async (req, res) => {
   noStore(res);
   const currentSessionHash = digest(req.sessionToken);
-  const [accounts, aliases, totpEntries, recent, unmatched, auditResult, metrics, runtime, sessions] = await Promise.all([
-    pool.query(`SELECT id, email, provider, host, port, secure, enabled, status, last_error, last_synced_at, sync_requested_at, created_at FROM mail_accounts ORDER BY id`),
-    pool.query(`SELECT a.id, a.mail_account_id, a.address, a.label, a.enabled, a.token_hint, a.token_expires_at, a.created_at,
-      (a.token_encrypted IS NOT NULL) AS token_recoverable,
-      (SELECT received_at FROM verification_messages v WHERE v.alias_id = a.id ORDER BY received_at DESC LIMIT 1) AS last_received_at
-      FROM aliases a ORDER BY a.id DESC`),
-    pool.query(`SELECT id, secret_hint, issuer, account_name, legacy_alias_address, last_used_at, created_at
-      FROM totp_entries ORDER BY id DESC`),
+  const [accountOptions, recent, metrics, runtime, sessions] = await Promise.all([
+    pool.query(`SELECT id, email FROM mail_accounts ORDER BY email`),
     pool.query(`SELECT mm.id, mm.alias_id, a.address, mm.sender, mm.subject, mm.mailbox_paths, mm.received_at
       FROM mail_messages mm LEFT JOIN aliases a ON a.id = mm.alias_id
       WHERE mm.mail_expires_at > NOW()
       ORDER BY mm.received_at DESC LIMIT 50`),
-    pool.query(`SELECT id, sender, subject, mailbox_paths, recipient_headers, received_at FROM unmatched_messages ORDER BY received_at DESC LIMIT 30`),
-    pool.query(`SELECT actor, action, target, detail, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 100`),
     pool.query(`SELECT
       (SELECT COUNT(*) FROM audit_logs WHERE action = 'query_success' AND created_at >= CURRENT_DATE)::int AS queries_today,
       (SELECT COUNT(*) FROM audit_logs WHERE action = 'query_failed' AND created_at >= CURRENT_DATE)::int AS query_failures_today,
@@ -807,7 +799,11 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
       (SELECT COUNT(*) FROM audit_logs WHERE action = 'login_failed' AND created_at >= CURRENT_DATE)::int AS login_failures_today,
       (SELECT COUNT(*) FROM mail_messages WHERE received_at >= CURRENT_DATE AND received_at < CURRENT_DATE + INTERVAL '1 day')::int AS mail_received_today,
       (SELECT COUNT(*) FROM mail_messages WHERE received_at >= CURRENT_DATE - INTERVAL '1 day' AND received_at < CURRENT_DATE)::int AS mail_received_yesterday,
+      (SELECT COUNT(*) FROM mail_accounts)::int AS mail_accounts,
+      (SELECT COUNT(*) FROM aliases)::int AS total_aliases,
       (SELECT COUNT(*) FROM aliases WHERE enabled = TRUE)::int AS active_aliases,
+      (SELECT COUNT(*) FROM aliases WHERE enabled = FALSE)::int AS disabled_aliases,
+      (SELECT COUNT(*) FROM aliases WHERE token_encrypted IS NOT NULL)::int AS recoverable_aliases,
       (SELECT COUNT(*) FROM aliases WHERE created_at >= CURRENT_DATE - INTERVAL '6 days')::int AS aliases_created_last_7_days,
       (SELECT COUNT(*) FROM mail_messages WHERE code_encrypted IS NOT NULL AND received_at >= CURRENT_DATE AND received_at < CURRENT_DATE + INTERVAL '1 day')::int AS codes_extracted_today,
       (SELECT COUNT(*) FROM mail_messages WHERE code_encrypted IS NOT NULL AND received_at >= CURRENT_DATE - INTERVAL '1 day' AND received_at < CURRENT_DATE)::int AS codes_extracted_yesterday,
@@ -825,16 +821,105 @@ app.get('/api/admin/state', ...adminApi(async (req, res) => {
   res.json({
     csrfToken: req.admin.csrf_token,
     admin: { email: req.admin.email, totpEnabled: Boolean(req.admin.totp_secret_encrypted) },
-    accounts: accounts.rows,
-    aliases: aliases.rows,
-    totpEntries: totpEntries.rows,
+    accountOptions: accountOptions.rows,
     recent: recent.rows,
-    unmatched: unmatched.rows,
-    audit: auditResult.rows,
     metrics: metrics.rows[0],
     runtime: runtime.rows,
     sessions: sessions.rows
   });
+}));
+
+app.get('/api/admin/lists/:resource', ...adminApi(async (req, res) => {
+  noStore(res);
+  const resource = String(req.params.resource || '');
+  const requestedPage = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const pageSize = Math.max(1, Math.min(50, Number.parseInt(req.query.pageSize, 10) || 10));
+  const keyword = String(req.query.keyword || '').trim().slice(0, 120);
+  let countSql = '';
+  let rowsSql = '';
+  let params = [];
+
+  if (resource === 'accounts') {
+    params = [keyword];
+    const where = `WHERE ($1 = '' OR email ILIKE '%' || $1 || '%' OR provider ILIKE '%' || $1 || '%' OR status ILIKE '%' || $1 || '%')`;
+    countSql = `SELECT COUNT(*)::int AS total FROM mail_accounts ${where}`;
+    rowsSql = `SELECT id, email, provider, host, port, secure, enabled, status, last_error, last_synced_at, sync_requested_at, created_at
+      FROM mail_accounts ${where} ORDER BY id DESC LIMIT $2 OFFSET $3`;
+  } else if (resource === 'aliases') {
+    const accountId = Number.parseInt(req.query.accountId, 10) || null;
+    const enabled = req.query.status === 'enabled' ? true : req.query.status === 'disabled' ? false : null;
+    params = [keyword, accountId, enabled];
+    const where = `WHERE ($1 = '' OR a.address ILIKE '%' || $1 || '%' OR a.label ILIKE '%' || $1 || '%')
+      AND ($2::bigint IS NULL OR a.mail_account_id = $2)
+      AND ($3::boolean IS NULL OR a.enabled = $3)`;
+    countSql = `SELECT COUNT(*)::int AS total FROM aliases a ${where}`;
+    rowsSql = `SELECT a.id, a.mail_account_id, m.email AS mail_account_email, a.address, a.label, a.enabled,
+      a.token_hint, a.token_expires_at, a.created_at, (a.token_encrypted IS NOT NULL) AS token_recoverable,
+      (SELECT received_at FROM verification_messages v WHERE v.alias_id = a.id ORDER BY received_at DESC LIMIT 1) AS last_received_at
+      FROM aliases a JOIN mail_accounts m ON m.id = a.mail_account_id ${where}
+      ORDER BY a.id DESC LIMIT $4 OFFSET $5`;
+  } else if (resource === 'totp') {
+    params = [keyword];
+    const where = `WHERE ($1 = '' OR issuer ILIKE '%' || $1 || '%' OR account_name ILIKE '%' || $1 || '%' OR secret_hint ILIKE '%' || $1 || '%')`;
+    countSql = `SELECT COUNT(*)::int AS total FROM totp_entries ${where}`;
+    rowsSql = `SELECT id, secret_hint, issuer, account_name, legacy_alias_address, last_used_at, created_at
+      FROM totp_entries ${where} ORDER BY id DESC LIMIT $2 OFFSET $3`;
+  } else if (resource === 'unmatched') {
+    params = [keyword];
+    const where = `WHERE ($1 = '' OR sender ILIKE '%' || $1 || '%' OR subject ILIKE '%' || $1 || '%' OR recipient_headers ILIKE '%' || $1 || '%')`;
+    countSql = `SELECT COUNT(*)::int AS total FROM unmatched_messages ${where}`;
+    rowsSql = `SELECT id, sender, subject, mailbox_paths, recipient_headers, received_at
+      FROM unmatched_messages ${where} ORDER BY received_at DESC, id DESC LIMIT $2 OFFSET $3`;
+  } else if (resource === 'audit' || resource === 'security-audit') {
+    params = [keyword];
+    const securityWhere = resource === 'security-audit'
+      ? `AND action ~ '(login|session|password|secret|totp|mail_account)'`
+      : '';
+    const where = `WHERE ($1 = '' OR actor ILIKE '%' || $1 || '%' OR action ILIKE '%' || $1 || '%' OR target ILIKE '%' || $1 || '%' OR detail ILIKE '%' || $1 || '%') ${securityWhere}`;
+    countSql = `SELECT COUNT(*)::int AS total FROM audit_logs ${where}`;
+    rowsSql = `SELECT actor, action, target, detail, created_at FROM audit_logs ${where}
+      ORDER BY created_at DESC LIMIT $2 OFFSET $3`;
+  } else {
+    return res.status(404).json({ error: '后台列表不存在' });
+  }
+
+  const countResult = await pool.query(countSql, params);
+  const total = Number(countResult.rows[0]?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * pageSize;
+  const rowsResult = await pool.query(rowsSql, [...params, pageSize, offset]);
+  res.json({
+    rows: rowsResult.rows,
+    pagination: { page, pageSize, total, totalPages }
+  });
+}));
+
+app.get('/api/admin/search', ...adminApi(async (req, res) => {
+  noStore(res);
+  const keyword = String(req.query.keyword || '').trim().slice(0, 120);
+  if (!keyword) return res.json({ results: [] });
+  const [accounts, aliases, totps, messages] = await Promise.all([
+    pool.query(`SELECT email AS title, provider AS detail FROM mail_accounts
+      WHERE email ILIKE '%' || $1 || '%' OR provider ILIKE '%' || $1 || '%' ORDER BY id DESC LIMIT 3`, [keyword]),
+    pool.query(`SELECT address AS title, label AS detail FROM aliases
+      WHERE address ILIKE '%' || $1 || '%' OR label ILIKE '%' || $1 || '%' ORDER BY id DESC LIMIT 3`, [keyword]),
+    pool.query(`SELECT COALESCE(NULLIF(issuer, ''), '未命名平台') AS title,
+      COALESCE(NULLIF(account_name, ''), '无账号备注') AS detail,
+      COALESCE(NULLIF(issuer, ''), NULLIF(account_name, ''), secret_hint) AS value
+      FROM totp_entries WHERE issuer ILIKE '%' || $1 || '%' OR account_name ILIKE '%' || $1 || '%' OR secret_hint ILIKE '%' || $1 || '%'
+      ORDER BY id DESC LIMIT 3`, [keyword]),
+    pool.query(`SELECT COALESCE(NULLIF(mm.subject, ''), '无主题') AS title, mm.sender, a.address
+      FROM mail_messages mm LEFT JOIN aliases a ON a.id = mm.alias_id
+      WHERE mm.mail_expires_at > NOW() AND (mm.sender ILIKE '%' || $1 || '%' OR mm.subject ILIKE '%' || $1 || '%' OR a.address ILIKE '%' || $1 || '%')
+      ORDER BY mm.received_at DESC LIMIT 3`, [keyword])
+  ]);
+  res.json({ results: [
+    ...accounts.rows.map((row) => ({ section: 'mailboxes', icon: 'inbox', type: '母邮箱', title: row.title, detail: row.detail, value: row.title })),
+    ...aliases.rows.map((row) => ({ section: 'aliases', icon: 'at-sign', type: '子邮箱', title: row.title, detail: row.detail || '无备注', value: row.title })),
+    ...totps.rows.map((row) => ({ section: 'totp-entries', icon: 'fingerprint', type: '2FA', title: row.title, detail: row.detail, value: row.value })),
+    ...messages.rows.map((row) => ({ section: 'messages', icon: 'mail', type: '邮件', title: row.title, detail: `${publicSenderName(row.sender)} · ${row.address || '未匹配'}`, value: keyword }))
+  ].slice(0, 8) });
 }));
 
 app.post('/api/admin/mail-account/:id/sync', ...adminApi(async (req, res) => {

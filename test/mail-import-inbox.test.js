@@ -114,7 +114,9 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(publicQuery, /mailState\.token/);
   assert.match(publicQuery, /function selectAccessMail\(filter = 'all'\)/);
   assert.match(publicQuery, /setMailResultsVisible\(false\)/);
-  assert.match(publicQuery, /event\.submitter \|\| mailForm\.querySelector/);
+  assert.match(publicQuery, /const activeFilter = inboxWorkspace\.dataset\.primaryPanel === 'code' \? 'code' : 'all'/);
+  assert.match(publicQuery, /mailForm\.querySelector\(`\[data-mail-filter="\$\{activeFilter\}"\]`\)/);
+  assert.doesNotMatch(publicQuery, /event\.submitter/);
   assert.doesNotMatch(publicQuery, /accessView|openPublicTool|data-access-view/);
   assert.match(publicQuery, /mailboxHealthDot/);
   assert.doesNotMatch(listRoute, /body_text_encrypted/);

@@ -50,8 +50,8 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
   assert.match(adminHtml, /class="admin-presence"/);
   assert.match(adminHtml, /id="unmatched-table"/);
   assert.match(adminHtml, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(adminHtml, /admin\.js\?v=20260816-1/);
-  assert.match(adminHtml, /admin-design\.css\?v=20260816-1/);
+  assert.match(adminHtml, /admin\.js\?v=20260816-2/);
+  assert.match(adminHtml, /admin-design\.css\?v=20260816-2/);
   assert.doesNotMatch(adminHtml, /styles\.css/);
   assert.match(adminHtml, />管理中心</);
   assert.match(adminHtml, /<title>mail管理<\/title>/);
@@ -72,17 +72,28 @@ test('mail, alias, and TOTP records have scoped edit routes', () => {
 
 test('admin data-heavy cards paginate without extending the whole page', () => {
   assert.match(admin, /const adminPagination = \{/);
-  assert.match(admin, /accounts: \{ page: 1, pageSize: 8 \}/);
-  assert.match(admin, /aliases: \{ page: 1, pageSize: 8 \}/);
-  assert.match(admin, /securityAudit: \{ page: 1, pageSize: 10 \}/);
-  assert.match(admin, /function renderPagedTable/);
+  assert.match(admin, /accounts: \{ resource: 'accounts', page: 1, pageSize: 10/);
+  assert.match(admin, /aliases: \{ resource: 'aliases', page: 1, pageSize: 10/);
+  assert.match(admin, /totp: \{ resource: 'totp', page: 1, pageSize: 10/);
+  assert.match(admin, /securityAudit: \{ resource: 'security-audit', page: 1, pageSize: 10/);
+  assert.match(admin, /async function loadAdminList/);
+  assert.match(admin, /\/api\/admin\/lists\/\$\{pagination\.resource\}/);
+  assert.match(admin, /data-admin-page-size/);
   assert.match(admin, /function bindPaginationActions/);
+  assert.doesNotMatch(admin, /rows\.slice\(start, start \+ pagination\.pageSize\)/);
   assert.match(adminHtml, /id="accounts-pagination"/);
   assert.match(adminHtml, /id="aliases-pagination"/);
+  assert.match(adminHtml, /id="totp-pagination"/);
   assert.match(adminHtml, /id="unmatched-pagination"/);
   assert.match(adminHtml, /id="overview-audit-pagination"/);
   assert.match(adminHtml, /id="security-audit-pagination"/);
+  assert.match(server, /app\.get\('\/api\/admin\/lists\/:resource'/);
+  assert.match(server, /SELECT COUNT\(\*\)::int AS total/);
+  assert.match(server, /LIMIT \$2 OFFSET \$3/);
+  assert.match(server, /pagination: \{ page, pageSize, total, totalPages \}/);
   assert.match(adminDesign, /\.admin-pagination \{/);
+  assert.match(adminDesign, /\.pagination-size/);
+  assert.match(adminDesign, /\.management-card\.paged-card/);
   assert.match(adminDesign, /\.pagination-page\.active/);
 });
 
@@ -133,7 +144,8 @@ test('admin mail views show parsed sender names instead of raw addresses', () =>
   assert.match(admin, /function senderDisplayName/);
   assert.match(admin, /senderDisplayName\(row\.sender\)/);
   assert.match(admin, /senderDisplayName\(message\.sender\)/);
-  assert.match(admin, /detail: `\$\{senderDisplayName\(row\.sender\)\}/);
+  assert.match(server, /app\.get\('\/api\/admin\/search'/);
+  assert.match(server, /detail: `\$\{publicSenderName\(row\.sender\)\}/);
 });
 
 test('alias secret exports track first downloads without coupling to token changes', () => {
