@@ -553,6 +553,17 @@ function selectedBatchInboxItem() {
   return batchInboxState.results.find((item) => item.index === batchInboxState.selectedMailboxIndex) || null;
 }
 
+function updateBatchInboxSelection() {
+  batchInboxMailboxes.querySelectorAll('[data-batch-inbox-mailbox]').forEach((button) => {
+    button.classList.toggle('active', Number(button.dataset.batchInboxMailbox) === batchInboxState.selectedMailboxIndex);
+  });
+  batchInboxMessages.querySelectorAll('[data-batch-inbox-message]').forEach((button) => {
+    const active = Number(button.dataset.mailboxIndex) === batchInboxState.selectedMailboxIndex
+      && Number(button.dataset.batchInboxMessage) === Number(batchInboxState.selectedMessageId);
+    button.classList.toggle('active', active);
+  });
+}
+
 function renderBatchInboxMailboxes() {
   batchInboxMailboxes.innerHTML = batchInboxState.results.map((item) => {
     const mailbox = item.mailbox;
@@ -608,7 +619,7 @@ function selectBatchInboxMailbox(index, { navigate = false } = {}) {
   const changed = batchInboxState.selectedMailboxIndex !== index;
   batchInboxState.selectedMailboxIndex = index;
   if (changed) resetBatchInboxDetail();
-  renderBatchInboxMailboxes();
+  updateBatchInboxSelection();
   renderBatchInboxMessages();
   if (navigate) {
     batchInboxWorkspace.classList.add('show-messages');
@@ -699,8 +710,7 @@ async function openBatchInboxMessage(index, message) {
   if (!token) return;
   batchInboxState.selectedMailboxIndex = index;
   batchInboxState.selectedMessageId = Number(message.id);
-  renderBatchInboxMailboxes();
-  renderBatchInboxMessages();
+  updateBatchInboxSelection();
   batchInboxWorkspace.classList.add('show-messages', 'show-detail');
   batchInboxMessageDetail.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
   try {

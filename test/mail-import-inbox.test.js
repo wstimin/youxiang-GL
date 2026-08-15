@@ -136,6 +136,14 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
 test('batch inbox searches seven-day mail in a three-pane workspace by full mailbox address', () => {
   const html = fs.readFileSync('public/index.html', 'utf8');
   const styles = fs.readFileSync('public/styles.css', 'utf8');
+  const selectMailboxLogic = publicQuery.slice(
+    publicQuery.indexOf('function selectBatchInboxMailbox'),
+    publicQuery.indexOf('function renderBatchInbox()', publicQuery.indexOf('function selectBatchInboxMailbox'))
+  );
+  const openMessageLogic = publicQuery.slice(
+    publicQuery.indexOf('async function openBatchInboxMessage'),
+    publicQuery.indexOf('function totpPlatform', publicQuery.indexOf('async function openBatchInboxMessage'))
+  );
   const batchInboxDesktopStart = styles.indexOf('.public-app[data-view="batch-inbox"]');
   const batchInboxDesktopStyles = styles.slice(
     styles.lastIndexOf('@media (min-width: 901px)', batchInboxDesktopStart),
@@ -179,6 +187,7 @@ test('batch inbox searches seven-day mail in a three-pane workspace by full mail
   assert.doesNotMatch(publicQuery, /tokens\.length > 50/);
   assert.match(publicQuery, /data-batch-inbox-mailbox/);
   assert.match(publicQuery, /batchInboxState\.selectedMailboxIndex/);
+  assert.match(publicQuery, /function updateBatchInboxSelection\(\)/);
   assert.doesNotMatch(publicQuery, /batchInboxState\.expanded|data-batch-inbox-toggle/);
   assert.match(publicQuery, /request\('\/api\/query\/message', \{ token, messageId/);
   assert.match(publicQuery, /batchInboxMessageDetail\.innerHTML/);
@@ -191,7 +200,13 @@ test('batch inbox searches seven-day mail in a three-pane workspace by full mail
   assert.doesNotMatch(publicQuery, /formatFolders\(message\.folders\)|formatFolders\(detail\.folders\)|所在文件夹/);
   assert.doesNotMatch(publicQuery, /public-code-badge|detail\.code|message\.hasCode|data-copy-detail-code|纯文本正文/);
   assert.doesNotMatch(publicQuery, /localStorage|sessionStorage/);
+  assert.match(selectMailboxLogic, /updateBatchInboxSelection\(\);[\s\S]*?renderBatchInboxMessages\(\);/);
+  assert.doesNotMatch(selectMailboxLogic, /renderBatchInboxMailboxes\(\)/);
+  assert.match(openMessageLogic, /updateBatchInboxSelection\(\);/);
+  assert.doesNotMatch(openMessageLogic, /renderBatchInboxMailboxes\(\)|renderBatchInboxMessages\(\)/);
   assert.match(styles, /\.batch-inbox-workspace \{[^}]*grid-template-columns: minmax\(230px, \.65fr\) minmax\(320px, \.9fr\) minmax\(420px, 1\.45fr\)/);
+  assert.match(styles, /#batch-inbox-mailboxes \.batch-inbox-mailbox \{[^}]*min-height: 88px;[^}]*grid-template-rows: minmax\(0, auto\) auto;/);
+  assert.match(styles, /#batch-inbox-mailboxes \.batch-inbox-group-state \{[^}]*min-height: 16px;[^}]*grid-row: 2;[^}]*overflow: visible;/);
   assert.match(styles, /\.batch-inbox-toolbar \{[^}]*grid-template-columns: auto minmax\(300px, 1fr\) auto/);
   assert.match(styles, /\.batch-inbox-view > \.public-tool-head \{ min-height: 47px;/);
   assert.match(styles, /\.batch-inbox-workspace\.show-detail \.batch-inbox-message-detail/);
@@ -201,6 +216,8 @@ test('batch inbox searches seven-day mail in a three-pane workspace by full mail
   assert.match(batchInboxDesktopStyles, /\.public-app\[data-view="batch-inbox"\] \{[^}]*height: 100vh;[^}]*overflow: hidden;/);
   assert.match(batchInboxDesktopStyles, /#batch-inbox-tokens \{[^}]*overflow-y: auto;/);
   assert.match(batchInboxDesktopStyles, /#batch-inbox-result \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(batchInboxDesktopStyles, /#batch-inbox-workspace \{[^}]*grid-template-columns: minmax\(270px, \.78fr\) minmax\(320px, \.92fr\) minmax\(420px, 1\.3fr\);/);
+  assert.match(batchInboxDesktopStyles, /\.batch-inbox-group-identity strong \{[^}]*text-overflow: clip;[^}]*white-space: normal;[^}]*overflow-wrap: anywhere;/);
   assert.match(batchInboxDesktopStyles, /#batch-inbox-mailboxes,[\s\S]*?#batch-inbox-messages \{[^}]*overflow-y: auto;/);
   assert.match(batchInboxDesktopStyles, /#batch-inbox-message-detail \{[^}]*overflow-y: auto;/);
   assert.doesNotMatch(batchInboxDesktopStyles, /data-view="batch"\]/);

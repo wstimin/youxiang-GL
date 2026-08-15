@@ -443,6 +443,23 @@ a { color: inherit; }
 .batch-inbox-state.delayed > span { background: var(--accent); }
 .batch-inbox-state.invalid { color: var(--danger); }
 .batch-inbox-state.invalid > span { background: var(--danger); }
+#batch-inbox-mailboxes .batch-inbox-mailbox {
+  min-height: 88px;
+  padding-block: 11px;
+  grid-template-rows: minmax(0, auto) auto;
+  column-gap: 9px;
+  row-gap: 6px;
+}
+#batch-inbox-mailboxes .batch-inbox-group-index { grid-column: 1; grid-row: 1; align-self: center; }
+#batch-inbox-mailboxes .batch-inbox-group-identity { grid-column: 2; grid-row: 1; }
+#batch-inbox-mailboxes .batch-inbox-group-state {
+  min-height: 16px;
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
 .batch-inbox-message-detail { padding: 25px clamp(20px, 2.4vw, 38px) 32px; background: white; }
 .batch-inbox-detail-error { min-height: 360px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); text-align: center; }
 .batch-inbox-detail-error svg { width: 30px; height: 30px; color: var(--danger); }
@@ -2321,6 +2338,7 @@ tr:last-child td { border-bottom: 0; }
   .public-app[data-view="batch-inbox"] #batch-inbox-workspace {
     min-height: 0;
     flex: 1 1 auto;
+    grid-template-columns: minmax(270px, .78fr) minmax(320px, .92fr) minmax(420px, 1.3fr);
     overflow: hidden;
   }
   .public-app[data-view="batch-inbox"] #batch-inbox-workspace .batch-inbox-pane {
@@ -2329,6 +2347,13 @@ tr:last-child td { border-bottom: 0; }
     overflow: hidden;
   }
   .public-app[data-view="batch-inbox"] #batch-inbox-workspace .batch-inbox-pane-head { flex: 0 0 auto; }
+  .public-app[data-view="batch-inbox"] .batch-inbox-group-identity strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
   .public-app[data-view="batch-inbox"] #batch-inbox-mailboxes,
   .public-app[data-view="batch-inbox"] #batch-inbox-messages {
     min-height: 0;
