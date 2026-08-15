@@ -2242,6 +2242,109 @@ tr:last-child td { border-bottom: 0; }
   }
 }
 
+@media (min-width: 901px) {
+  .public-app[data-view="batch-inbox"] {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-view {
+    height: 100%;
+    min-height: 0;
+    padding-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-view > .public-tool-head { flex: 0 0 auto; }
+  .public-app[data-view="batch-inbox"] #batch-inbox-view > .public-tool-layout {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    align-items: stretch;
+    overflow: hidden;
+    border: 1px solid var(--design-border);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: var(--design-shadow);
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-form,
+  .public-app[data-view="batch-inbox"] #batch-inbox-placeholder {
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-form {
+    padding: 28px 30px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--design-border);
+    background: linear-gradient(145deg, #fbfcff, #f7f9ff);
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-form > .field {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-tokens {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+    resize: none;
+    overflow-y: auto;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-form > .message,
+  .public-app[data-view="batch-inbox"] #batch-inbox-form > .btn { flex: 0 0 auto; }
+  .public-app[data-view="batch-inbox"] #batch-inbox-result {
+    grid-column: 1 / -1;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-result > .batch-inbox-toolbar {
+    position: static;
+    flex: 0 0 auto;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-workspace {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-workspace .batch-inbox-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-workspace .batch-inbox-pane-head { flex: 0 0 auto; }
+  .public-app[data-view="batch-inbox"] #batch-inbox-mailboxes,
+  .public-app[data-view="batch-inbox"] #batch-inbox-messages {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .public-app[data-view="batch-inbox"] #batch-inbox-message-detail {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
 #totp-view .totp-form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

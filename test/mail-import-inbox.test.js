@@ -136,6 +136,11 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
 test('batch inbox searches seven-day mail in a three-pane workspace by full mailbox address', () => {
   const html = fs.readFileSync('public/index.html', 'utf8');
   const styles = fs.readFileSync('public/styles.css', 'utf8');
+  const batchInboxDesktopStart = styles.indexOf('.public-app[data-view="batch-inbox"]');
+  const batchInboxDesktopStyles = styles.slice(
+    styles.lastIndexOf('@media (min-width: 901px)', batchInboxDesktopStart),
+    styles.indexOf('\n#totp-view', batchInboxDesktopStart)
+  );
   const batchInboxRoute = server.slice(
     server.indexOf("app.post('/api/query/batch-inbox'"),
     server.indexOf("app.post('/api/query/totp'")
@@ -191,4 +196,12 @@ test('batch inbox searches seven-day mail in a three-pane workspace by full mail
   assert.match(styles, /\.batch-inbox-view > \.public-tool-head \{ min-height: 47px;/);
   assert.match(styles, /\.batch-inbox-workspace\.show-detail \.batch-inbox-message-detail/);
   assert.match(styles, /\.public-nav \{ min-width: 0; display: flex;[\s\S]*?overflow-x: auto;/);
+  assert.ok(batchInboxDesktopStart >= 0);
+  assert.match(batchInboxDesktopStyles, /@media \(min-width: 901px\)/);
+  assert.match(batchInboxDesktopStyles, /\.public-app\[data-view="batch-inbox"\] \{[^}]*height: 100vh;[^}]*overflow: hidden;/);
+  assert.match(batchInboxDesktopStyles, /#batch-inbox-tokens \{[^}]*overflow-y: auto;/);
+  assert.match(batchInboxDesktopStyles, /#batch-inbox-result \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(batchInboxDesktopStyles, /#batch-inbox-mailboxes,[\s\S]*?#batch-inbox-messages \{[^}]*overflow-y: auto;/);
+  assert.match(batchInboxDesktopStyles, /#batch-inbox-message-detail \{[^}]*overflow-y: auto;/);
+  assert.doesNotMatch(batchInboxDesktopStyles, /data-view="batch"\]/);
 });
