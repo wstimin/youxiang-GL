@@ -4,26 +4,85 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <title>管理员登录</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=20260809-8">
+  <title>mail管理 · 管理员登录</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/mail-favicon.svg?v=20260815-1">
+  <link rel="stylesheet" href="/assets/login-design.css?v=20260815-1">
 </head>
 <body class="login-shell">
-  <main class="login-box">
-    <div class="login-brand"><span class="brand-mark"><i data-lucide="shield-check"></i></span><div><strong>验证码中心</strong><span>管理控制台</span></div></div>
-    <section class="login-panel">
-      <span class="eyebrow">ADMIN ACCESS</span>
-      <h1>管理员登录</h1>
-      <p class="login-copy">登录后管理邮箱和独立 2FA 记录。</p>
-      <form id="login-form">
-        <div class="field"><label for="email">管理邮箱</label><input id="email" type="email" autocomplete="username" required></div>
-        <div class="field"><label for="password">登录密码</label><input id="password" type="password" autocomplete="current-password" required></div>
-        <div id="totp-field" class="field hidden"><label for="totp">动态验证码</label><input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
-        <p id="login-error" class="message" role="alert"></p>
-        <button class="btn btn-primary" type="submit"><i data-lucide="log-in" class="icon"></i><span>登录</span></button>
-      </form>
+  <main class="login-page">
+    <section class="login-story" aria-labelledby="story-title">
+      <header class="login-brand">
+        <span class="brand-mark"><i data-lucide="mail"></i></span>
+        <span class="brand-copy"><strong>mail管理</strong><small>邮箱管理控制台</small></span>
+      </header>
+
+      <div class="story-copy">
+        <span class="story-kicker"><i data-lucide="sparkles"></i> MAIL MANAGEMENT</span>
+        <h1 id="story-title">让每一次收信与查询，<span>都清晰可控。</span></h1>
+        <p>统一管理母邮箱、子邮箱、验证码与 2FA 记录，在一处完成邮件聚合、查询授权和安全审计。</p>
+      </div>
+
+      <div class="story-preview" aria-label="管理能力概览">
+        <div class="preview-head">
+          <div><span class="preview-status"></span><strong>服务运行正常</strong></div>
+          <span>实时管理</span>
+        </div>
+        <div class="preview-grid">
+          <div class="preview-stat tone-teal"><span><i data-lucide="inbox"></i></span><div><small>聚合收件</small><strong>统一查看</strong></div></div>
+          <div class="preview-stat tone-blue"><span><i data-lucide="scan-text"></i></span><div><small>验证码</small><strong>快速提取</strong></div></div>
+          <div class="preview-stat tone-amber"><span><i data-lucide="shield-check"></i></span><div><small>安全审计</small><strong>全程留痕</strong></div></div>
+        </div>
+        <div class="mail-flow" aria-hidden="true">
+          <span class="flow-source"><i data-lucide="mail-plus"></i></span>
+          <span class="flow-line"><i data-lucide="chevron-right"></i></span>
+          <span class="flow-center"><i data-lucide="layers-3"></i></span>
+          <span class="flow-line"><i data-lucide="chevron-right"></i></span>
+          <span class="flow-result"><i data-lucide="badge-check"></i></span>
+        </div>
+      </div>
+
+      <footer class="story-foot">
+        <span><i data-lucide="server"></i> 多邮箱接入</span>
+        <span><i data-lucide="key-round"></i> 动态验证</span>
+        <span><i data-lucide="scroll-text"></i> 操作审计</span>
+      </footer>
+    </section>
+
+    <section class="login-side" aria-labelledby="login-title">
+      <div class="login-panel">
+        <div class="login-avatar" aria-hidden="true">
+          <span class="login-avatar-main"><i data-lucide="mail"></i></span>
+          <span class="login-avatar-badge"><i data-lucide="shield-check"></i></span>
+        </div>
+        <div class="login-heading">
+          <span>管理员安全入口</span>
+          <h2 id="login-title">欢迎回来</h2>
+          <p id="login-copy">登录后进入 mail 管理控制台</p>
+        </div>
+
+        <form id="login-form">
+          <div class="field">
+            <label for="email">管理邮箱</label>
+            <div class="input-shell"><i data-lucide="at-sign"></i><input id="email" type="email" autocomplete="username" placeholder="请输入管理员邮箱" required></div>
+          </div>
+          <div class="field">
+            <label for="password">登录密码</label>
+            <div class="input-shell"><i data-lucide="lock-keyhole"></i><input id="password" type="password" autocomplete="current-password" placeholder="请输入登录密码" required><button id="password-toggle" class="password-toggle" type="button" title="显示密码" aria-label="显示密码"><i data-lucide="eye"></i></button></div>
+          </div>
+          <div id="totp-field" class="field totp-field hidden">
+            <div class="totp-label"><label for="totp">动态验证码</label><span><i data-lucide="shield-check"></i> 已通过密码验证</span></div>
+            <div class="input-shell"><i data-lucide="binary"></i><input id="totp" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" placeholder="输入 6 位动态验证码"></div>
+          </div>
+          <p id="login-error" class="message" role="alert" aria-live="polite"></p>
+          <button id="login-submit" class="login-submit" type="submit"><i data-lucide="log-in"></i><span>安全登录</span></button>
+        </form>
+
+        <div class="login-security"><i data-lucide="shield"></i><span>登录过程受频率限制与会话安全策略保护</span></div>
+      </div>
+      <p class="login-version">mail管理 <span>v1.0.1</span></p>
     </section>
   </main>
   <script src="/assets/vendor/lucide.js?v=20260809-4"></script>
-  <script src="/assets/login.js?v=20260809-4"></script>
+  <script src="/assets/login.js?v=20260815-1"></script>
 </body>
 </html>
