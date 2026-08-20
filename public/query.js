@@ -91,17 +91,31 @@ const singleCodeState = document.querySelector('#single-code-state');
 const singleCodeResult = document.querySelector('#single-code-result');
 
 const activeTotps = new Map();
-const mailState = {
-  token: '',
-  filter: 'all',
-  keyword: '',
-  cursor: null,
-  loading: false,
-  selectedId: null,
-  latestId: null,
-  lastRefreshAt: null,
-  requestId: 0
+function createMailState(filter) {
+  return {
+    token: '',
+    filter,
+    keyword: '',
+    cursor: null,
+    loading: false,
+    selectedId: null,
+    latestId: null,
+    lastRefreshAt: null,
+    requestId: 0,
+    resultsVisible: false,
+    mailbox: null
+  };
+}
+
+const mailStates = {
+  code: createMailState('code'),
+  all: createMailState('all')
 };
+let mailState = mailStates.code;
+
+function selectMailState(filter) {
+  mailState = mailStates[filter === 'code' ? 'code' : 'all'];
+}
 let mailSearchTimer;
 let mailRefreshTimer;
 let mailRefreshInFlight = false;
@@ -172,80 +186,82 @@ function formatSyncLabel(value) {
   return `${Math.floor(seconds / 86400)} 天前更新`;
 }
 
-function updateMailbox(data) {
+function updateMailbox(data, state = mailState) {
   const mailbox = data?.mailbox;
   if (!mailbox) return;
+  state.mailbox = mailbox;
+  if (state === mailState) renderMailSessionSummary();
+}
+
+function renderMailSessionSummary() {
+  const mailbox = mailState.mailbox;
   const stateLabels = { ready: '已连接，只读访问', updating: '正在同步邮件', delayed: '同步稍有延迟', paused: '邮箱已暂停' };
   const healthLabels = { ready: '已连接', updating: '正在同步', delayed: '同步延迟', paused: '已暂停' };
-  mailboxAddress.textContent = mailbox.address || '授权邮箱';
-  mailboxState.textContent = stateLabels[mailbox.state] || '只读访问';
-  mailboxHealthLabel.textContent = healthLabels[mailbox.state] || '只读访问';
-  mailboxLastSync.textContent = formatSyncLabel(mailbox.lastSyncedAt);
-  mailboxHealthDot.dataset.state = mailbox.state || 'updating';
-  mailTotalCount.textContent = String(mailbox.totalMessages ?? 0);
-  mailConnectionStat.textContent = healthLabels[mailbox.state] || '只读访问';
-  mailRefreshStat.textContent = formatSyncLabel(mailbox.lastSyncedAt);
-  inboxWorkspace.dataset.mailboxState = mailbox.state || 'updating';
-  singleMailboxAddress.textContent = mailbox.address || '授权邮箱';
-  singleMailboxCount.textContent = `${Number(mailbox.totalMessages || 0)} 封`;
-  singleMailboxSync.textContent = formatSyncLabel(mailbox.lastSyncedAt);
-  singleMailboxStatus.className = `batch-inbox-state ${mailbox.state === 'paused' ? 'invalid' : mailbox.state === 'delayed' ? 'delayed' : 'ready'}`;
-  singleMailboxStatus.innerHTML = `<span></span>${escapeHtml(healthLabels[mailbox.state] || '已连接')}`;
-  singleCodeMailbox.textContent = mailbox.address || '授权邮箱';
-  singleCodeState.className = `batch-inbox-state ${mailbox.state === 'paused' ? 'invalid' : mailbox.state === 'delayed' ? 'delayed' : 'ready'}`;
-  singleCodeState.innerHTML = `<span></span>${escapeHtml(mailbox.state === 'paused' ? '已暂停' : '已收到')}`;
+  mailboxAddress.textContent = mailbox?.address || '授权邮箱';
+  mailboxState.textContent = mailbox ? stateLabels[mailbox.state] || '只读访问' : '输入密钥开始查询';
+  mailboxHealthLabel.textContent = mailbox ? healthLabels[mailbox.state] || '只读访问' : '等待连接';
+  mailboxLastSync.textContent = mailbox ? formatSyncLabel(mailbox.lastSyncedAt) : '尚未查询';
+  mailboxHealthDot.dataset.state = mailbox?.state || '';
+  mailTotalCount.textContent = String(mailbox?.totalMessages ?? 0);
+  mailConnectionStat.textContent = mailbox ? healthLabels[mailbox.state] || '只读访问' : '等待查询';
+  mailRefreshStat.textContent = mailbox ? formatSyncLabel(mailbox.lastSyncedAt) : '实时';
+  inboxWorkspace.dataset.mailboxState = mailbox?.state || '';
+  if (mailState.filter === 'code') {
+    singleCodeMailbox.textContent = mailbox?.address || '等待邮箱';
+    return;
+  }
+  singleMailboxAddress.textContent = mailbox?.address || '授权邮箱';
+  singleMailboxCount.textContent = `${Number(mailbox?.totalMessages || 0)} 封`;
+  singleMailboxSync.textContent = mailbox ? formatSyncLabel(mailbox.lastSyncedAt) : '等待首次更新';
+  singleMailboxStatus.className = `batch-inbox-state ${!mailbox ? 'empty' : mailbox.state === 'paused' ? 'invalid' : mailbox.state === 'delayed' ? 'delayed' : 'ready'}`;
+  singleMailboxStatus.innerHTML = `<span></span>${mailbox ? escapeHtml(healthLabels[mailbox.state] || '已连接') : '等待查询'}`;
 }
 
-function setRefreshLabel() {
-  mailLastRefresh.textContent = mailState.lastRefreshAt
-    ? formatSyncLabel(mailState.lastRefreshAt)
-    : '尚未更新';
+function setRefreshLabel(state = mailState) {
+  mailLastRefresh.textContent = state.lastRefreshAt ? formatSyncLabel(state.lastRefreshAt) : '尚未更新';
 }
 
-function scheduleMailRefresh(seconds = 60) {
+function scheduleMailRefresh(seconds = 60, state = mailState) {
   clearTimeout(mailRefreshTimer);
-  if (!mailState.token) return;
-  mailRefreshTimer = setTimeout(() => pollForNewMail(seconds), Math.max(30, seconds) * 1000);
+  if (!state.token || state !== mailState || inboxWorkspace.dataset.view !== 'mail') return;
+  mailRefreshTimer = setTimeout(() => pollForNewMail(seconds, state), Math.max(30, seconds) * 1000);
 }
 
-async function pollForNewMail(refreshSeconds = 60) {
-  if (mailRefreshInFlight || !mailState.token || inboxWorkspace.dataset.view !== 'mail') {
-    scheduleMailRefresh(refreshSeconds);
+async function pollForNewMail(refreshSeconds = 60, state = mailState) {
+  if (mailRefreshInFlight || !state.token || state !== mailState || inboxWorkspace.dataset.view !== 'mail') {
+    if (state === mailState) scheduleMailRefresh(refreshSeconds, state);
     return;
   }
   mailRefreshInFlight = true;
-  const token = mailState.token;
-  const requestId = mailState.requestId;
+  const token = state.token;
+  const requestId = state.requestId;
   try {
     const data = await request('/api/query', {
       token,
       cursor: null,
       limit: 1,
-      keyword: mailState.keyword,
-      status: mailState.filter === 'code' ? 'code' : ''
+      keyword: state.keyword,
+      status: state.filter === 'code' ? 'code' : ''
     });
-    if (token !== mailState.token || requestId !== mailState.requestId || inboxWorkspace.dataset.view !== 'mail') return;
-    updateMailbox(data);
+    if (token !== state.token || requestId !== state.requestId) return;
+    updateMailbox(data, state);
     const latestMessage = data.messages?.[0] || null;
     const latestId = Number(latestMessage?.id || 0) || null;
-    if (mailState.filter === 'code') {
+    if (state.filter === 'code') {
       renderSingleCodeResult(latestMessage, data.mailbox);
-      mailState.latestId = latestId;
-      mailState.lastRefreshAt = new Date().toISOString();
-      setRefreshLabel();
+      state.latestId = latestId;
+      state.lastRefreshAt = new Date().toISOString();
+      if (state === mailState) setRefreshLabel(state);
       renderIcons();
-      scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || refreshSeconds));
-      return;
-    }
-    if (mailState.latestId && latestId && latestId !== mailState.latestId) {
+    } else if (state.latestId && latestId && latestId !== state.latestId && state === mailState) {
       newMailBanner.classList.remove('hidden');
       renderIcons();
     }
-    scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || refreshSeconds));
+    if (state === mailState) scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || refreshSeconds), state);
   } catch (error) {
-    if (token === mailState.token && requestId === mailState.requestId) {
+    if (token === state.token && requestId === state.requestId && state === mailState) {
       mailListStatus.textContent = error.message;
-      scheduleMailRefresh(refreshSeconds);
+      scheduleMailRefresh(refreshSeconds, state);
     }
   } finally {
     mailRefreshInFlight = false;
@@ -284,18 +300,25 @@ function setPublicView(view) {
 }
 
 function selectAccessMail(filter = 'all') {
-  mailState.filter = filter;
+  clearTimeout(mailRefreshTimer);
+  selectMailState(filter);
+  mailErrorBox.textContent = '';
+  mailSearchInput.value = mailState.keyword;
+  clearMailSearchButton.classList.toggle('hidden', !mailState.keyword);
+  mailTokenInput.value = '';
+  mailTokenInput.required = !mailState.token;
   updateMailFilterUi();
   setPublicView('mail');
   document.querySelectorAll('[data-mail-filter]').forEach((button) => {
     button.classList.toggle('active', button.dataset.mailFilter === filter);
   });
+  if (mailState.resultsVisible) scheduleMailRefresh(60, mailState);
   mailTokenInput.focus();
 }
 
 function updateMailFilterUi() {
   const codeOnly = mailState.filter === 'code';
-  const resultsVisible = mailView.classList.contains('has-results');
+  const resultsVisible = mailState.resultsVisible;
   mailListTitle.textContent = codeOnly ? '验证码接收结果' : '收件箱';
   mailCurrentMode.textContent = codeOnly ? '验证码' : '完整邮箱';
   mailFormTitle.textContent = codeOnly ? '单个验证码接收' : '单个邮箱查询';
@@ -313,16 +336,14 @@ function updateMailFilterUi() {
   emptyDescription.textContent = codeOnly ? '验证码邮件到达后会自动显示。' : '可以刷新或修改搜索条件。';
   mailPlaceholder.querySelector('strong').textContent = codeOnly ? '等待接收验证码' : '邮箱结果显示在这里';
   mailPlaceholder.querySelector('span:last-child').textContent = codeOnly ? '输入查询密钥后，最新有效验证码会显示在这里。' : '输入查询密钥后，可以查看最近 7 天的收件箱。';
-  singleCodeResult.classList.toggle('hidden', !resultsVisible || !codeOnly);
-  mailListPane.classList.toggle('hidden', !resultsVisible || codeOnly);
-  mailListPane.classList.remove('code-mode');
-  mailDetail.classList.toggle('hidden', !resultsVisible || codeOnly);
-  singleMailboxPane.classList.toggle('hidden', !resultsVisible || codeOnly);
-  mailResultsPane.classList.toggle('single-mail-workspace', resultsVisible && !codeOnly);
+  setMailResultsVisible(resultsVisible, false);
+  renderMailSessionSummary();
+  setRefreshLabel(mailState);
 }
 
-function setMailResultsVisible(visible) {
+function setMailResultsVisible(visible, updateState = true) {
   const codeOnly = mailState.filter === 'code';
+  if (updateState) mailState.resultsVisible = visible;
   mailView.classList.toggle('has-results', visible);
   mailPlaceholder.classList.toggle('hidden', visible);
   singleCodeResult.classList.toggle('hidden', !visible || !codeOnly);
@@ -334,8 +355,8 @@ function setMailResultsVisible(visible) {
   mailResultsPane.classList.remove('show-messages', 'show-detail');
 }
 
-function resetMailDetail() {
-  mailState.selectedId = null;
+function resetMailDetail(state = mailStates.all) {
+  state.selectedId = null;
   mailResultsPane.classList.remove('show-detail');
   mailDetail.classList.remove('mobile-visible');
   mailDetail.innerHTML = '<div class="public-detail-empty"><span class="public-detail-empty-icon public-symbol-icon" aria-hidden="true">📨</span><strong>选择一封邮件</strong><span>点击左侧邮件后，在这里查看邮件内容。</span></div>';
@@ -381,74 +402,78 @@ function bindMessageItems(messages) {
   }
 }
 
-function updateMailListState(loadedCount) {
+function updateMailListState(loadedCount, state = mailStates.all) {
   const visibleCount = mailMessageList.children.length;
-  mailVisibleCount.textContent = `${visibleCount} ${mailState.filter === 'code' ? '个' : '封'}`;
-  mailListEmpty.classList.toggle('hidden', mailMessageList.children.length > 0 || mailState.loading);
-  mailLoadMoreButton.classList.toggle('hidden', !mailState.cursor || mailState.loading);
-  if (mailState.loading) mailListStatus.textContent = mailMessageList.children.length
-    ? mailState.filter === 'code' ? '正在加载更多验证码...' : '正在加载更多邮件...'
-    : mailState.filter === 'code' ? '正在接收验证码...' : '正在加载邮件...';
-  else if (mailMessageList.children.length) mailListStatus.textContent = loadedCount
-    ? mailState.filter === 'code' ? `已接收 ${mailMessageList.children.length} 个验证码` : `已加载 ${mailMessageList.children.length} 封邮件`
-    : '';
+  mailVisibleCount.textContent = `${visibleCount} 封`;
+  mailListEmpty.classList.toggle('hidden', mailMessageList.children.length > 0 || state.loading);
+  mailLoadMoreButton.classList.toggle('hidden', !state.cursor || state.loading);
+  if (state.loading) mailListStatus.textContent = mailMessageList.children.length ? '正在加载更多邮件...' : '正在加载邮件...';
+  else if (mailMessageList.children.length) mailListStatus.textContent = loadedCount ? `已加载 ${mailMessageList.children.length} 封邮件` : '';
   else mailListStatus.textContent = '';
 }
 
-async function loadMessages({ reset = false, unlock = false } = {}) {
-  if (!mailState.token || mailState.loading) return false;
-  if (!reset && !mailState.cursor) return false;
-  mailState.loading = true;
-  const requestId = ++mailState.requestId;
-  const token = mailState.token;
+async function loadMessages({ reset = false, unlock = false, state = mailState } = {}) {
+  if (!state.token || state.loading) return false;
+  if (!reset && (state.filter === 'code' || !state.cursor)) return false;
+  state.loading = true;
+  const requestId = ++state.requestId;
+  const token = state.token;
   if (reset) {
-    mailState.cursor = null;
-    mailMessageList.replaceChildren();
-    resetMailDetail();
+    state.cursor = null;
+    if (state.filter === 'all') {
+      mailMessageList.replaceChildren();
+      resetMailDetail(state);
+    }
   }
-  refreshMailButton.disabled = true;
-  updateMailListState(0);
+  if (state === mailState) {
+    refreshMailButton.disabled = true;
+    if (state.filter === 'all') updateMailListState(0, state);
+  }
   try {
     const data = await request('/api/query', {
       token,
-      cursor: reset ? null : mailState.cursor,
-      limit: mailState.filter === 'code' ? 1 : 40,
-      keyword: mailState.keyword,
-      status: mailState.filter === 'code' ? 'code' : ''
+      cursor: reset ? null : state.cursor,
+      limit: state.filter === 'code' ? 1 : 40,
+      keyword: state.keyword,
+      status: state.filter === 'code' ? 'code' : ''
     });
-    if (requestId !== mailState.requestId) return false;
+    if (requestId !== state.requestId) return false;
     const messages = Array.isArray(data.messages) ? data.messages : [];
-    const codeOnly = mailState.filter === 'code';
-    updateMailbox(data);
-    if (codeOnly) {
+    updateMailbox(data, state);
+    if (state.filter === 'code') {
       renderSingleCodeResult(messages[0] || null, data.mailbox);
-      mailState.cursor = null;
+      state.cursor = null;
     } else {
       mailMessageList.insertAdjacentHTML('beforeend', messages.map(renderMessageItem).join(''));
       bindMessageItems(messages);
-      mailState.cursor = data.nextCursor || null;
+      state.cursor = data.nextCursor || null;
     }
     if (reset) {
-      mailState.latestId = Number(messages[0]?.id || 0) || null;
-      newMailBanner.classList.add('hidden');
+      state.latestId = Number(messages[0]?.id || 0) || null;
+      if (state.filter === 'all') newMailBanner.classList.add('hidden');
     }
-    mailState.lastRefreshAt = new Date().toISOString();
-    setRefreshLabel();
-    scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || 60));
-    if (unlock) {
-      setMailResultsVisible(true);
-      setPublicView('mail');
+    state.lastRefreshAt = new Date().toISOString();
+    state.resultsVisible = true;
+    if (state === mailState) {
+      setRefreshLabel(state);
+      if (unlock) {
+        setMailResultsVisible(true);
+        setPublicView('mail');
+      }
+      scheduleMailRefresh(Number(data.mailbox?.refreshAfterSeconds || 60), state);
     }
     renderIcons();
     return true;
   } catch (error) {
-    if (unlock && requestId === mailState.requestId) mailState.token = '';
+    if (unlock && requestId === state.requestId) state.token = '';
     throw error;
   } finally {
-    if (requestId === mailState.requestId) {
-      mailState.loading = false;
-      refreshMailButton.disabled = false;
-      if (mailState.filter !== 'code') updateMailListState(mailMessageList.children.length);
+    if (requestId === state.requestId) {
+      state.loading = false;
+      if (state === mailState) {
+        refreshMailButton.disabled = false;
+        if (state.filter === 'all') updateMailListState(mailMessageList.children.length, state);
+      }
     }
   }
 }
@@ -459,14 +484,15 @@ newMailBanner.addEventListener('click', async () => {
 });
 
 async function openMailMessage(message, button) {
-  mailState.selectedId = Number(message.id);
+  const state = mailStates.all;
+  state.selectedId = Number(message.id);
   mailMessageList.querySelectorAll('.public-message-item').forEach((item) => item.classList.toggle('active', item === button));
   mailDetail.classList.add('mobile-visible');
   mailResultsPane.classList.add('show-messages', 'show-detail');
   mailDetail.innerHTML = '<div class="public-detail-loading"><span class="public-spinner"></span><span>正在加载邮件正文...</span></div>';
   try {
-    const data = await request('/api/query/message', { token: mailState.token, messageId: Number(message.id) });
-    if (mailState.selectedId !== Number(message.id)) return;
+    const data = await request('/api/query/message', { token: state.token, messageId: Number(message.id) });
+    if (state.selectedId !== Number(message.id)) return;
     const detail = data.message;
     mailDetail.innerHTML = `<header class="public-detail-head">
       <button class="public-mobile-back" type="button" title="返回邮件列表" aria-label="返回邮件列表"><i data-lucide="arrow-left"></i></button>
@@ -867,41 +893,16 @@ async function refreshTotps() {
   }
 }
 
-document.querySelectorAll('[data-public-view]').forEach((button) => button.addEventListener('click', async () => {
+document.querySelectorAll('[data-public-view]').forEach((button) => button.addEventListener('click', () => {
   if (button.dataset.publicView === 'mail') {
-    const filter = button.dataset.mailFilter || mailState.filter || 'all';
-    if (!mailState.token) {
-      selectAccessMail(filter);
-      return;
-    }
-    const changed = mailState.filter !== filter;
-    mailState.filter = filter;
-    document.querySelectorAll('[data-mail-filter]').forEach((action) => {
-      action.classList.toggle('active', action.dataset.mailFilter === filter);
-    });
-    updateMailFilterUi();
-    setPublicView('mail');
-    if (changed) {
-      try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
-    }
+    selectAccessMail(button.dataset.mailFilter || mailState.filter || 'all');
     return;
   }
   setPublicView(button.dataset.publicView);
 }));
 
-document.querySelectorAll('[data-mode-panel][data-mode="single"]').forEach((button) => button.addEventListener('click', async () => {
-  const filter = button.dataset.modePanel === 'code' ? 'code' : 'all';
-  if (!mailState.token) {
-    selectAccessMail(filter);
-    return;
-  }
-  const changed = mailState.filter !== filter;
-  mailState.filter = filter;
-  updateMailFilterUi();
-  setPublicView('mail');
-  if (changed) {
-    try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
-  }
+document.querySelectorAll('[data-mode-panel][data-mode="single"]').forEach((button) => button.addEventListener('click', () => {
+  selectAccessMail(button.dataset.modePanel === 'code' ? 'code' : 'all');
 }));
 
 setMailResultsVisible(false);
@@ -910,19 +911,16 @@ selectAccessMail('code');
 mailForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   mailErrorBox.textContent = '';
-  const activeFilter = inboxWorkspace.dataset.primaryPanel === 'code' ? 'code' : 'all';
-  const button = mailForm.querySelector(`[data-mail-filter="${activeFilter}"]`);
-  mailState.filter = activeFilter;
-  updateMailFilterUi();
-  document.querySelectorAll('[data-mail-filter]').forEach((action) => {
-    action.classList.toggle('active', action.dataset.mailFilter === mailState.filter);
-  });
+  const filter = inboxWorkspace.dataset.primaryPanel === 'code' ? 'code' : 'all';
+  if (mailState.filter !== filter) selectMailState(filter);
+  const state = mailState;
+  const button = mailForm.querySelector(`[data-mail-filter="${filter}"]`);
   button.disabled = true;
   const nextToken = mailTokenInput.value.trim();
-  if (nextToken) mailState.token = nextToken;
+  if (nextToken) state.token = nextToken;
   try {
-    if (!mailState.token) throw new Error('请输入查询密钥');
-    await loadMessages({ reset: true, unlock: true });
+    if (!state.token) throw new Error('请输入查询密钥');
+    await loadMessages({ reset: true, unlock: true, state });
     mailTokenInput.value = '';
     mailTokenInput.required = false;
   } catch (error) {
@@ -936,24 +934,31 @@ changeKeyButton.addEventListener('click', () => showToast('当前页面无需额
 
 changeMailboxButton.addEventListener('click', () => {
   clearTimeout(mailRefreshTimer);
+  mailState.requestId += 1;
   mailState.token = '';
   mailState.cursor = null;
   mailState.keyword = '';
   mailState.selectedId = null;
+  mailState.latestId = null;
+  mailState.lastRefreshAt = null;
+  mailState.resultsVisible = false;
+  mailState.mailbox = null;
+  mailState.loading = false;
   mailTokenInput.value = '';
   mailTokenInput.required = true;
   mailSearchInput.value = '';
   clearMailSearchButton.classList.add('hidden');
-  mailMessageList.replaceChildren();
-  singleCodeResult.replaceChildren();
+  if (mailState.filter === 'code') {
+    singleCodeResult.replaceChildren();
+    singleCodeMailbox.textContent = '等待邮箱';
+    singleCodeState.className = 'batch-inbox-state empty';
+    singleCodeState.innerHTML = '<span></span>等待中';
+  } else {
+    mailMessageList.replaceChildren();
+    resetMailDetail(mailState);
+  }
   setMailResultsVisible(false);
   updateMailFilterUi();
-  mailTotalCount.textContent = '0';
-  mailConnectionStat.textContent = '等待查询';
-  mailRefreshStat.textContent = '实时';
-  singleCodeMailbox.textContent = '等待邮箱';
-  singleCodeState.className = 'batch-inbox-state empty';
-  singleCodeState.innerHTML = '<span></span>等待中';
   mailTokenInput.focus();
   renderIcons();
 });
@@ -1001,9 +1006,11 @@ mailLoadMoreButton.addEventListener('click', async () => {
 mailSearchInput.addEventListener('input', () => {
   clearTimeout(mailSearchTimer);
   clearMailSearchButton.classList.toggle('hidden', !mailSearchInput.value);
+  const state = mailState;
+  state.keyword = mailSearchInput.value.trim();
+  if (!state.token || !state.resultsVisible) return;
   mailSearchTimer = setTimeout(async () => {
-    mailState.keyword = mailSearchInput.value.trim();
-    try { await loadMessages({ reset: true }); } catch (error) { mailListStatus.textContent = error.message; }
+    try { await loadMessages({ reset: true, state }); } catch (error) { mailListStatus.textContent = error.message; }
   }, 350);
 });
 
@@ -1155,8 +1162,9 @@ totpForm.addEventListener('submit', async (event) => {
 });
 
 const loadObserver = new IntersectionObserver((entries) => {
-  if (entries[0]?.isIntersecting && mailState.cursor && !mailState.loading && inboxWorkspace.dataset.view === 'mail') {
-    loadMessages().catch((error) => { mailListStatus.textContent = error.message; });
+  const state = mailStates.all;
+  if (entries[0]?.isIntersecting && state.cursor && !state.loading && mailState === state && inboxWorkspace.dataset.view === 'mail') {
+    loadMessages({ state }).catch((error) => { mailListStatus.textContent = error.message; });
   }
 }, { root: mailListPane, rootMargin: '160px' });
 loadObserver.observe(mailLoadSentinel);

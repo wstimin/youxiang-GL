@@ -98,6 +98,8 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(html, /data-mail-filter="code"[\s\S]*?接收验证码/);
   assert.doesNotMatch(html, /mail-function-pane|mail-access-panel|id="access-view"|access-app-bar|access-content|access-mail-preview/);
   assert.match(styles, /\.public-mail-layout \{ grid-template-columns: minmax\(330px, \.72fr\) minmax\(440px, 1\.28fr\)/);
+  assert.match(styles, /data-primary-panel="code"\] #mail-view \.public-mail-layout,[\s\S]*?data-primary-panel="email"\] #mail-view \.public-mail-layout \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.doesNotMatch(styles, /data-primary-panel="email"\] #mail-view\.has-results \.public-mail-layout \{ display: block; \}/);
   assert.match(styles, /\.mail-action-buttons \{ display: grid; gap: 9px; \}/);
   assert.match(styles, /\.public-shell\.public-app-open \{ display: block; height: 100vh;/);
   assert.match(styles, /\.public-app \{ width: 100%; height: 100%;/);
@@ -109,13 +111,13 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(styles, /\.public-message-pane \{ min-width: 0; overflow: auto;/);
   assert.match(styles, /\.public-message-detail \{ min-width: 0; overflow: auto;/);
   assert.match(publicQuery, /new IntersectionObserver/);
-  assert.match(publicQuery, /cursor: reset \? null : mailState\.cursor/);
+  assert.match(publicQuery, /cursor: reset \? null : state\.cursor/);
   assert.match(publicQuery, /request\('\/api\/query\/message'/);
-  assert.match(publicQuery, /mailState\.token/);
+  assert.match(publicQuery, /const mailStates = \{/);
   assert.match(publicQuery, /function selectAccessMail\(filter = 'all'\)/);
   assert.match(publicQuery, /setMailResultsVisible\(false\)/);
-  assert.match(publicQuery, /const activeFilter = inboxWorkspace\.dataset\.primaryPanel === 'code' \? 'code' : 'all'/);
-  assert.match(publicQuery, /mailForm\.querySelector\(`\[data-mail-filter="\$\{activeFilter\}"\]`\)/);
+  assert.match(publicQuery, /const filter = inboxWorkspace\.dataset\.primaryPanel === 'code' \? 'code' : 'all'/);
+  assert.match(publicQuery, /mailForm\.querySelector\(`\[data-mail-filter="\$\{filter\}"\]`\)/);
   assert.doesNotMatch(publicQuery, /event\.submitter/);
   assert.doesNotMatch(publicQuery, /accessView|openPublicTool|data-access-view/);
   assert.match(publicQuery, /mailboxHealthDot/);

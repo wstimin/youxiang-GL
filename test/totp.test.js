@@ -96,22 +96,23 @@ test('public page keeps mail and TOTP in separate tabs and forms', () => {
   assert.doesNotMatch(html, /转换并保存 2FA/);
   assert.doesNotMatch(script, /已转换并同步到管理后台/);
   assert.match(html, /id="totp-view"/);
-  assert.match(html, /styles\.css\?v=20260816-5/);
+  assert.match(html, /styles\.css\?v=20260820-1/);
   assert.match(html, /vendor\/lucide\.js\?v=20260809-7/);
-  assert.match(html, /query\.js\?v=20260816-3/);
+  assert.match(html, /query\.js\?v=20260820-1/);
   assert.match(html, /data-public-view="totp"[\s\S]*?2FA 工具/);
   assert.doesNotMatch(html, /class="twofa-mark"/);
   assert.doesNotMatch(html, /data-lucide="shield-keyhole"/);
   assert.doesNotMatch(html, /id="totp-token"/);
   assert.match(script, /request\('\/api\/query', \{/);
-  assert.match(script, /limit: mailState\.filter === 'code' \? 1 : 40/);
+  assert.match(script, /limit: state\.filter === 'code' \? 1 : 40/);
   assert.match(script, /request\('\/api\/query\/totp', \{ entries \}\)/);
   assert.match(script, /const activeTotps = new Map\(\)/);
   assert.match(script, /function renderTotpAvatar/);
   assert.match(script, /class="totp-entry"/);
   assert.doesNotMatch(script, /document\.querySelectorAll\('\[data-access-view\]'\)/);
   assert.doesNotMatch(script, /openPublicTool\(view\)/);
-  assert.match(script, /if \(!mailState\.token\) \{[\s\S]*?selectAccessMail\(filter\)/);
+  assert.match(script, /code: createMailState\('code'\)/);
+  assert.match(script, /all: createMailState\('all'\)/);
 });
 
 test('public mail lookup supports bounded batches and automatic refresh', () => {

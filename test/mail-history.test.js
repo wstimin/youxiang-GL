@@ -81,8 +81,8 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(html, /id="inbox-workspace"/);
   assert.match(html, /id="mail-list-pane"/);
   assert.match(html, /id="mail-detail"/);
-  assert.match(script, /cursor: reset \? null : mailState\.cursor/);
-  assert.match(script, /limit: mailState\.filter === 'code' \? 1 : 40/);
+  assert.match(script, /cursor: reset \? null : state\.cursor/);
+  assert.match(script, /limit: state\.filter === 'code' \? 1 : 40/);
   assert.match(script, /request\('\/api\/query\/message'/);
   assert.match(script, /querySelector\('\.public-detail-body'\)\.textContent = detail\.body/);
   assert.doesNotMatch(script, /<dt>收件人<\/dt>|detail\.recipients/);
@@ -95,9 +95,17 @@ test('public mail UI renders plain text bodies and seven-day history', () => {
   assert.match(script, /function renderCodeItem\(message, address/);
   assert.match(script, /data-copy-mail-code/);
   assert.match(script, /renderSingleCodeResult\(messages\[0\] \|\| null, data\.mailbox\)/);
-  assert.match(script, /const activeFilter = inboxWorkspace\.dataset\.primaryPanel === 'code' \? 'code' : 'all'/);
-  assert.match(script, /mailForm\.querySelector\(`\[data-mail-filter="\$\{activeFilter\}"\]`\)/);
+  assert.match(script, /const filter = inboxWorkspace\.dataset\.primaryPanel === 'code' \? 'code' : 'all'/);
+  assert.match(script, /mailForm\.querySelector\(`\[data-mail-filter="\$\{filter\}"\]`\)/);
   assert.doesNotMatch(script, /event\.submitter/);
+  assert.match(script, /const mailStates = \{/);
+  assert.match(script, /code: createMailState\('code'\)/);
+  assert.match(script, /all: createMailState\('all'\)/);
+  const singleSwitchHandlers = script.slice(
+    script.lastIndexOf("document.querySelectorAll('[data-public-view]')"),
+    script.indexOf('setMailResultsVisible(false)')
+  );
+  assert.doesNotMatch(singleSwitchHandlers, /loadMessages\(/);
   assert.doesNotMatch(script, /messages\.map\(mailState\.filter === 'code' \? renderCodeItem : renderMessageItem\)/);
   assert.doesNotMatch(script, /detail\.body[^\n]*innerHTML/);
   assert.match(script, /邮件内容/);
