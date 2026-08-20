@@ -100,6 +100,9 @@ test('public inbox is a full-screen page app, cursor-paged, and hides commercial
   assert.match(styles, /\.public-mail-layout \{ grid-template-columns: minmax\(330px, \.72fr\) minmax\(440px, 1\.28fr\)/);
   assert.match(styles, /data-primary-panel="code"\] #mail-view \.public-mail-layout,[\s\S]*?data-primary-panel="email"\] #mail-view \.public-mail-layout \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(styles, /data-primary-panel="email"\] #mail-view\.has-results \.public-mail-layout \{ display: block; \}/);
+  assert.match(styles, /data-primary-panel="email"\] #mail-view\.has-results \.public-mail-layout \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /data-primary-panel="email"\] #mail-view\.has-results \.mail-query-form \.card-title,[\s\S]*?\.mail-token-field,[\s\S]*?\.form-submit \{ display: none; \}/);
+  assert.match(styles, /data-primary-panel="email"\] #mail-view\.has-results \.mail-results-pane\.single-mail-workspace \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?grid-template-columns: minmax\(270px, \.78fr\) minmax\(320px, \.92fr\) minmax\(420px, 1\.3fr\)/);
   assert.match(styles, /\.mail-action-buttons \{ display: grid; gap: 9px; \}/);
   assert.match(styles, /\.public-shell\.public-app-open \{ display: block; height: 100vh;/);
   assert.match(styles, /\.public-app \{ width: 100%; height: 100%;/);

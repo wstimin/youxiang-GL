@@ -2458,6 +2458,49 @@ tr:last-child td { border-bottom: 0; }
 #totp-view .totp-form-row .form-submit { display: flex; justify-content: flex-end; }
 #totp-view .totp-form-row .form-submit .btn { min-width: 190px; }
 
+.public-app[data-primary-panel="email"] #mail-view.has-results .public-mail-layout {
+  min-height: 648px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-query-form {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 9px 14px;
+  border-right: 0;
+  border-bottom: 1px solid var(--design-border);
+  background: #fafbff;
+}
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-query-form .card-title,
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-token-field,
+.public-app[data-primary-panel="email"] #mail-view.has-results .form-submit { display: none; }
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-query-form .form-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-keyword-field { min-width: 0; }
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-change-action { display: block; min-width: 0; }
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-change-action .btn { min-height: 42px; }
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-results-pane.single-mail-workspace {
+  grid-column: 1 / -1;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(270px, .78fr) minmax(320px, .92fr) minmax(420px, 1.3fr);
+  border-radius: 0;
+}
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-results-pane.single-mail-workspace .single-mailbox-pane,
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-results-pane.single-mail-workspace .public-message-pane,
+.public-app[data-primary-panel="email"] #mail-view.has-results .mail-results-pane.single-mail-workspace .public-message-detail {
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .mail-results-pane.single-mail-workspace {
   min-height: 580px;
   max-height: none;
